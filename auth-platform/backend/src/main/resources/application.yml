@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: auth-platform
+  datasource:
+    url: jdbc:mysql://localhost:3306/auth_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: localhost
+      port: 16379
+      password:
+      database: 0
+      timeout: 5000ms
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 前端SPA地址（OAuth2登录/授权页面所在地）
+app:
+  frontend-url: http://localhost:5173
+
+# JWT配置
+auth:
+  jwt:
+    secret: YXV0aC1wbGF0Zm9ybS1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tMjAyNA==
+    expiration: 7200000       # 2小时
+    refresh-expiration: 604800000  # 7天
+    issuer: auth-platform
+
+# 跨域配置
+cors:
+  allowed-origins: http://localhost:5173,http://localhost:5174
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+
+# Knife4j
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    com.auth.platform: debug
