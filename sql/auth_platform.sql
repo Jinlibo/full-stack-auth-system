@@ -168,11 +168,15 @@ CREATE TABLE oauth2_authorization_consent
 -- 初始化数据
 -- =============================================
 
--- 默认管理员 (密码: admin123, BCrypt加密)
+-- 默认管理员 (密码: admin123)
+--
+-- 重要：password 字段存储的是占位符而非真实 BCrypt 哈希。
+-- Spring Boot 启动时，DataInitializer 会检测到此占位符无法通过 BCrypt 验证，
+-- 并自动将其替换为 passwordEncoder.encode("admin123") 的正确哈希值。
+-- 这样设计的好处：无论 SQL 被重复执行多少次，只需重启应用即可恢复正确密码，
+-- 无需在 SQL 中硬编码一个可能因环境差异而失效的 BCrypt 哈希。
 INSERT INTO sys_user (username, password, email, nickname, status)
-VALUES
--- 密码: admin123 (BCrypt, cost=10). DataInitializer 在启动时会自动修正此hash。
-('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin@example.com', '超级管理员', 1);
+VALUES ('admin', 'PLACEHOLDER_FIXED_BY_DATAINITIALIZER', 'admin@example.com', '超级管理员', 1);
 
 -- 默认角色
 INSERT INTO sys_role (role_name, role_key, sort_order, remark)
@@ -215,10 +219,25 @@ SELECT 2, id
 FROM sys_permission
 WHERE permission_key LIKE 'product%';
 
--- 初始化一个示例产品(即Project2的OAuth2客户端)
+-- ============================================================
+-- 初始化示例产品（即 product-app 的 OAuth2 客户端）
+--
+-- 重要：sys_product.product_secret 必须存储【明文密钥】，
+-- 供管理页面展示给开发者复制到 product-app/application.yml。
+-- BCrypt 加密发生在 oauth2_registered_client 表（见下方）。
+--
+-- 可配置流程：
+--   1. 在认证平台"产品管理"页面创建/查看产品
+--      → 页面会显示明文的 Client ID（product_key）和 Client Secret（product_secret）
+--   2. 将这两个值填写到 product-app 的 application.yml：
+--        oauth2.client.client-id: <product_key>
+--        oauth2.client.client-secret: <product_secret>
+--   3. 重启 product-app，OAuth2 授权登录即可正常使用
+-- ============================================================
 INSERT INTO sys_product (product_name, product_key, product_secret, description, redirect_uris, status)
-VALUES ('示例产品应用', 'product-app', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36PQm1z98LYEqnZPmCu9P1W',
-        '第二个项目-产品应用', '["http://localhost:5174/oauth/callback"]', 1);
+VALUES ('示例产品应用', 'product-app', 'admin123',
+        '第二个项目-产品应用（默认密钥: admin123，可在产品管理页面查看或重置）',
+        '["http://localhost:5174/oauth/callback"]', 1);
 
 -- 同步注册到OAuth2客户端表
 INSERT INTO oauth2_registered_client (id, client_id, client_secret, client_name, client_authentication_methods,

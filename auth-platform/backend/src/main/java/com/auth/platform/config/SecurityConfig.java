@@ -1,6 +1,7 @@
 package com.auth.platform.config;
 
 import com.auth.platform.security.JwtAuthenticationFilter;
+import com.auth.platform.security.LoginUser;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,7 +65,22 @@ public class SecurityConfig {
                             String redirectUrl = savedRequest != null
                                     ? savedRequest.getRedirectUrl()
                                     : frontendUrl;
-                            response.getWriter().write("{\"redirectUrl\":\"" + redirectUrl + "\"}");
+                            // 将当前登录用户的昵称/用户名一并返回，供 OAuthConsent 页面展示
+                            // 这样授权确认页可以显示 "你好，xxx，以下应用请求授权"
+                            String nickname = "";
+                            String username = authentication.getName();
+                            if (authentication.getPrincipal() instanceof LoginUser loginUser) {
+                                String n = loginUser.getUser().getNickname();
+                                nickname = (n != null && !n.isEmpty()) ? n : loginUser.getUsername();
+                            }
+                            // 对昵称中的双引号转义，防止 JSON 注入
+                            nickname = nickname.replace("\\", "\\\\").replace("\"", "\\\"");
+                            username = username.replace("\\", "\\\\").replace("\"", "\\\"");
+                            response.getWriter().write(
+                                    "{\"redirectUrl\":\"" + redirectUrl + "\"" +
+                                            ",\"nickname\":\"" + nickname + "\"" +
+                                            ",\"username\":\"" + username + "\"}"
+                            );
                         })
                         .failureHandler((request, response, exception) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

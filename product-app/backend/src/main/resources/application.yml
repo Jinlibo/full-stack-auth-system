@@ -28,31 +28,59 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
-# JWT配置 (Product App自己的JWT)
+# ============================================================
+# Product App 自有 JWT 配置
+# 用于 product-app 内部的用户认证（独立于认证平台的 OAuth2 JWT）
+# ============================================================
 app:
   jwt:
     secret: cHJvZHVjdC1hcHAtc2VjcmV0LWtleS1mb3Itand0LXRva2VuLTIwMjQ=
-    expiration: 7200000
-    refresh-expiration: 604800000
+    expiration: 7200000       # Access Token 有效期：2 小时（毫秒）
+    refresh-expiration: 604800000  # Refresh Token 有效期：7 天（毫秒）
     issuer: product-app
 
-# OAuth2配置 - 对接Auth Platform
+# ============================================================
+# OAuth2 配置 - 对接认证平台（Auth Platform）
+#
+# 【如何获取 Client ID 和 Client Secret？】
+#
+#   方式一：使用默认示例产品（SQL 初始化时已创建）
+#     client-id:     product-app
+#     client-secret: admin123
+#
+#   方式二：在认证平台中自行创建新产品（推荐）
+#     1. 登录认证平台管理后台 → 产品管理 → 新增产品
+#        填写产品名称、回调 URI（必须与下方 redirect-uri 一致）
+#     2. 创建成功后，产品列表会显示自动生成的：
+#          Client ID     → 填入下方 client-id
+#          Client Secret → 填入下方 client-secret（明文，只展示一次请妥善保存）
+#     3. 将上述两个值填写到本文件的对应配置项
+#     4. 重启 product-app，OAuth2 授权登录即可正常使用
+#
+# 【回调地址说明】
+#   redirect-uri 必须与认证平台产品配置中的回调 URI 完全一致，
+#   同时也必须与前端 OAuth2 回调页面路由（/oauth/callback）匹配。
+#
+# 【修改配置后务必重启 product-app】
+# ============================================================
 oauth2:
   auth-server:
-    base-url: http://localhost:8080
-    authorize-uri: /oauth2/authorize
-    token-uri: /oauth2/token
-    userinfo-uri: /api/oauth2/userinfo
-    jwks-uri: /.well-known/jwk-set.json
+    base-url: http://localhost:8080          # 认证平台后端地址
+    authorize-uri: /oauth2/authorize         # 授权端点（跳转到认证平台登录页）
+    token-uri: /oauth2/token                 # 令牌端点（用授权码换 Access Token）
+    userinfo-uri: /api/oauth2/userinfo       # 用户信息端点（获取登录用户资料）
+    jwks-uri: /.well-known/jwk-set.json      # JWK Set 端点（验证 JWT 签名用）
   client:
-    client-id: product-app
-    client-secret: admin123
-    redirect-uri: http://localhost:5174/oauth/callback
-    scope: openid,profile,email
+    # ↓↓↓ 从认证平台"产品管理"页面获取，填入下方两项 ↓↓↓
+    client-id: product-app     # 产品标识（Client ID），对应 sys_product.product_key
+    client-secret: admin123    # 产品密钥（Client Secret），对应 sys_product.product_secret 的明文值
+    # ↑↑↑ 修改后需重启 product-app 服务 ↑↑↑
+    redirect-uri: http://localhost:5174/oauth/callback  # 必须与认证平台产品配置的回调 URI 完全一致
+    scope: openid,profile,email   # 请求的权限范围（openid=必须，profile=昵称/头像，email=邮箱）
 
-# 跨域
+# 跨域配置
 cors:
-  allowed-origins: http://localhost:5174
+  allowed-origins: http://localhost:5174   # 前端开发服务器地址，生产环境改为实际域名
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   allowed-headers: "*"
 
