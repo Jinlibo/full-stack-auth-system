@@ -1,18 +1,22 @@
 package com.auth.platform.config;
 
+import com.auth.platform.common.OAuth2ClientDefaults;
 import com.auth.platform.entity.SysUser;
 import com.auth.platform.entity.SysUserRole;
+import com.auth.platform.mapper.OAuth2RegisteredClientMapper;
 import com.auth.platform.mapper.SysUserMapper;
 import com.auth.platform.mapper.SysUserRoleMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 /**
  * Initializes required baseline data on startup.
@@ -34,10 +38,14 @@ public class DataInitializer implements ApplicationRunner {
     private static final String ADMIN_PASSWORD = "admin123";
     private static final String PRODUCT_APP_CLIENT_ID = "product-app";
     private static final String PRODUCT_APP_CLIENT_SECRET = "admin123";
+
+    private final OAuth2RegisteredClientMapper oauth2ClientMapper;
+
     private final SysUserMapper userMapper;
     private final SysUserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
-    private final JdbcTemplate jdbcTemplate;
+    @Value("${app.product-app-redirect-uri:http://localhost:5174/oauth/callback}")
+    private String productAppRedirectUri;
 
     @Override
     @Transactional
@@ -58,19 +66,13 @@ public class DataInitializer implements ApplicationRunner {
             admin.setNickname("超级管理员");
             admin.setStatus(1);
             userMapper.insert(admin);
-            log.info("DataInitializer: created admin user");
 
-            // Assign SUPER_ADMIN role (id=1)
-            Long count = userRoleMapper.selectCount(
-                    new LambdaQueryWrapper<SysUserRole>()
-                            .eq(SysUserRole::getUserId, admin.getId())
-                            .eq(SysUserRole::getRoleId, 1L));
-            if (count == 0) {
-                SysUserRole ur = new SysUserRole();
-                ur.setUserId(admin.getId());
-                ur.setRoleId(1L);
-                userRoleMapper.insert(ur);
-            }
+            // Assign SUPER_ADMIN role (id=1) — new user has no roles yet, no need to check
+            SysUserRole ur = new SysUserRole();
+            ur.setUserId(admin.getId());
+            ur.setRoleId(1L);
+            userRoleMapper.insert(ur);
+            log.info("DataInitializer: created admin user with SUPER_ADMIN role");
         } else if (!passwordEncoder.matches(ADMIN_PASSWORD, admin.getPassword())) {
             // Hash in DB does not match admin123 — fix it
             admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
@@ -80,51 +82,29 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private void initProductAppOAuthClient() {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM oauth2_registered_client WHERE client_id = ?",
-                Integer.class, PRODUCT_APP_CLIENT_ID);
+        // Single query: null means client does not exist yet
+        String storedSecret = oauth2ClientMapper.selectSecretByClientId(PRODUCT_APP_CLIENT_ID);
 
-        if (count == null || count == 0) {
+        if (storedSecret == null) {
             String encodedSecret = passwordEncoder.encode(PRODUCT_APP_CLIENT_SECRET);
-            jdbcTemplate.update(
-                    "INSERT INTO oauth2_registered_client " +
-                            "(id, client_id, client_secret, client_name, " +
-                            "client_authentication_methods, authorization_grant_types, " +
-                            "redirect_uris, scopes, client_settings, token_settings) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    java.util.UUID.randomUUID().toString(),
+            oauth2ClientMapper.insert(
+                    UUID.randomUUID().toString(),
                     PRODUCT_APP_CLIENT_ID,
                     encodedSecret,
                     "示例产品应用",
-                    "client_secret_basic,client_secret_post",
-                    "authorization_code,refresh_token",
-                    "http://localhost:5174/oauth/callback",
-                    "openid,profile,email",
-                    "{\"@class\":\"java.util.Collections$UnmodifiableMap\"," +
-                            "\"settings.client.require-proof-key\":false," +
-                            "\"settings.client.require-authorization-consent\":true}",
-                    "{\"@class\":\"java.util.Collections$UnmodifiableMap\"," +
-                            "\"settings.token.reuse-refresh-tokens\":true," +
-                            "\"settings.token.id-token-signature-algorithm\":[\"org.springframework.security.oauth2.jose.jws.SignatureAlgorithm\",\"RS256\"]," +
-                            "\"settings.token.access-token-time-to-live\":[\"java.time.Duration\",3600.000000000]," +
-                            "\"settings.token.access-token-format\":{\"@class\":\"org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat\",\"value\":\"self-contained\"}," +
-                            "\"settings.token.refresh-token-time-to-live\":[\"java.time.Duration\",86400.000000000]," +
-                            "\"settings.token.authorization-code-time-to-live\":[\"java.time.Duration\",300.000000000]," +
-                            "\"settings.token.device-code-time-to-live\":[\"java.time.Duration\",300.000000000]}"
+                    OAuth2ClientDefaults.CLIENT_AUTH_METHODS,
+                    OAuth2ClientDefaults.GRANT_TYPES,
+                    productAppRedirectUri,
+                    OAuth2ClientDefaults.SCOPES,
+                    OAuth2ClientDefaults.CLIENT_SETTINGS,
+                    OAuth2ClientDefaults.TOKEN_SETTINGS
             );
             log.info("DataInitializer: registered product-app OAuth2 client");
-        } else {
+        } else if (!passwordEncoder.matches(PRODUCT_APP_CLIENT_SECRET, storedSecret)) {
             // Ensure the stored secret is BCrypt-encoded (SQL may have wrong hash)
-            String storedSecret = jdbcTemplate.queryForObject(
-                    "SELECT client_secret FROM oauth2_registered_client WHERE client_id = ?",
-                    String.class, PRODUCT_APP_CLIENT_ID);
-            if (storedSecret != null && !passwordEncoder.matches(PRODUCT_APP_CLIENT_SECRET, storedSecret)) {
-                String encodedSecret = passwordEncoder.encode(PRODUCT_APP_CLIENT_SECRET);
-                jdbcTemplate.update(
-                        "UPDATE oauth2_registered_client SET client_secret = ? WHERE client_id = ?",
-                        encodedSecret, PRODUCT_APP_CLIENT_ID);
-                log.info("DataInitializer: fixed product-app client_secret hash");
-            }
+            String encodedSecret = passwordEncoder.encode(PRODUCT_APP_CLIENT_SECRET);
+            oauth2ClientMapper.updateSecret(encodedSecret, PRODUCT_APP_CLIENT_ID);
+            log.info("DataInitializer: fixed product-app client_secret hash");
         }
     }
 }

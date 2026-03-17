@@ -3,9 +3,11 @@ package com.auth.platform.service.impl;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.auth.platform.common.BusinessException;
+import com.auth.platform.common.OAuth2ClientDefaults;
 import com.auth.platform.common.PageQuery;
 import com.auth.platform.dto.ProductRequest;
 import com.auth.platform.entity.SysProduct;
+import com.auth.platform.mapper.OAuth2RegisteredClientMapper;
 import com.auth.platform.mapper.SysProductMapper;
 import com.auth.platform.service.SysProductService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,12 +17,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -37,11 +39,11 @@ import java.util.UUID;
  *   <li>两表通过 productKey（=client_id）字段关联</li>
  * </ul>
  *
- * <p>为何使用 JdbcTemplate 而非 MyBatis-Plus 操作 oauth2_registered_client？
+ * <p>为何使用专用 Mapper 而非 MyBatis-Plus 操作 oauth2_registered_client？
  * <ul>
  *   <li>oauth2_registered_client 是 Spring Authorization Server 的内置表，
  *       其结构（尤其是 client_settings 和 token_settings 的 JSON 格式）比较特殊</li>
- *   <li>使用 JdbcTemplate 直接执行原生 SQL，避免 ORM 框架对特殊 JSON 格式的兼容性问题</li>
+ *   <li>该表无 deleted、created_at 等 MP 自动填充字段，使用原生 MyBatis 注解 Mapper 直接写 SQL</li>
  * </ul>
  *
  * @author auth-platform
@@ -64,10 +66,10 @@ public class SysProductServiceImpl extends ServiceImpl<SysProductMapper, SysProd
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * JDBC 模板，用于直接执行 SQL 操作 oauth2_registered_client 表
-     * 相比 MyBatis-Plus，更适合处理复杂的 JSON 格式字段
+     * MyBatis Mapper，操作 oauth2_registered_client 表
+     * 使用原生 SQL 注解，避免 MyBatis-Plus 自动填充对该特殊表的干扰
      */
-    private final JdbcTemplate jdbcTemplate;
+    private final OAuth2RegisteredClientMapper oauth2ClientMapper;
 
     /**
      * Jackson ObjectMapper，用于将 redirectUris 字符串数组序列化为 JSON 字符串
@@ -143,70 +145,35 @@ public class SysProductServiceImpl extends ServiceImpl<SysProductMapper, SysProd
         product.setLogoUrl(request.getLogoUrl());
         product.setStatus(1); // 默认启用
 
-        // 将 redirectUris 数组序列化为 JSON 字符串存储（方便管理后台展示和编辑）
-        String redirectUrisJson = "[]"; // 默认为空数组
-        if (request.getRedirectUris() != null && !request.getRedirectUris().isEmpty()) {
-            try {
-                // 使用 Jackson 序列化，确保 JSON 格式正确
-                redirectUrisJson = objectMapper.writeValueAsString(request.getRedirectUris());
-            } catch (JsonProcessingException e) {
-                throw new BusinessException("回调 URI 格式错误，无法序列化");
-            }
+        // 将 redirectUris 数组序列化为 JSON 字符串（sys_product 用），同时生成逗号分隔字符串（oauth2 表用）
+        List<String> uris = (request.getRedirectUris() != null) ? request.getRedirectUris() : java.util.List.of();
+        String redirectUrisJson;
+        try {
+            redirectUrisJson = objectMapper.writeValueAsString(uris);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException("回调 URI 格式错误，无法序列化");
         }
+        String redirectUriStr = String.join(",", uris);
+
         product.setRedirectUris(redirectUrisJson);
         productMapper.insert(product);
 
         // 第四步：同步注册到 oauth2_registered_client 表
-        // 该表是 Spring Authorization Server 查询客户端信息的来源，格式要求严格
-
-        // redirect_uris 在 oauth2_registered_client 中以逗号分隔的字符串格式存储
-        String redirectUriStr = String.join(",",
-                request.getRedirectUris() != null ? request.getRedirectUris() : java.util.List.of());
 
         // 使用 BCrypt 加密 Client Secret（Spring Auth Server 在认证时会用 BCrypt.matches 比对）
         String encodedSecret = passwordEncoder.encode(rawSecret);
 
-        // 插入 oauth2_registered_client 记录
-        // client_settings 和 token_settings 使用 Spring Auth Server 特定的 JSON 序列化格式
-        String sql = "INSERT INTO oauth2_registered_client " +
-                "(id, client_id, client_secret, client_name, client_authentication_methods, " +
-                "authorization_grant_types, redirect_uris, scopes, client_settings, token_settings) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        jdbcTemplate.update(sql,
-                UUID.randomUUID().toString(),  // id：oauth2_registered_client 主键（UUID 字符串）
-                clientId,                       // client_id：与 sys_product.product_key 相同
-                encodedSecret,                  // client_secret：BCrypt 加密后的 Secret
-                request.getProductName(),       // client_name：客户端显示名称（显示在授权确认页）
-                // 支持的客户端认证方式：Basic（HTTP Authorization 头）和 Post（表单体）
-                "client_secret_basic,client_secret_post",
-                // 支持的授权模式：授权码（authorization_code）和刷新令牌（refresh_token）
-                "authorization_code,refresh_token",
-                redirectUriStr,                 // redirect_uris：允许的回调地址（逗号分隔）
-                "openid,profile,email",         // scopes：支持的 OAuth2 scope（OIDC 标准）
-
-                // client_settings JSON：Spring Auth Server 内部序列化格式
-                // - require-proof-key: false  不强制 PKCE（可按需开启）
-                // - require-authorization-consent: true  需要用户在授权页手动确认授权
-                "{\"@class\":\"java.util.Collections$UnmodifiableMap\"," +
-                        "\"settings.client.require-proof-key\":false," +
-                        "\"settings.client.require-authorization-consent\":true}",
-
-                // token_settings JSON：Token 相关配置
-                // - access-token-time-to-live: 3600 秒（1 小时）
-                // - refresh-token-time-to-live: 86400 秒（24 小时）
-                // - authorization-code-time-to-live: 300 秒（5 分钟）
-                // - id-token-signature-algorithm: RS256
-                // - access-token-format: self-contained（JWT 格式）
-                // - reuse-refresh-tokens: true（允许复用 Refresh Token）
-                "{\"@class\":\"java.util.Collections$UnmodifiableMap\"," +
-                        "\"settings.token.reuse-refresh-tokens\":true," +
-                        "\"settings.token.id-token-signature-algorithm\":[\"org.springframework.security.oauth2.jose.jws.SignatureAlgorithm\",\"RS256\"]," +
-                        "\"settings.token.access-token-time-to-live\":[\"java.time.Duration\",3600.000000000]," +
-                        "\"settings.token.access-token-format\":{\"@class\":\"org.springframework.security.oauth2.server.authorization.settings.OAuth2TokenFormat\",\"value\":\"self-contained\"}," +
-                        "\"settings.token.refresh-token-time-to-live\":[\"java.time.Duration\",86400.000000000]," +
-                        "\"settings.token.authorization-code-time-to-live\":[\"java.time.Duration\",300.000000000]," +
-                        "\"settings.token.device-code-time-to-live\":[\"java.time.Duration\",300.000000000]}"
+        oauth2ClientMapper.insert(
+                UUID.randomUUID().toString(),
+                clientId,
+                encodedSecret,
+                request.getProductName(),
+                OAuth2ClientDefaults.CLIENT_AUTH_METHODS,
+                OAuth2ClientDefaults.GRANT_TYPES,
+                redirectUriStr,
+                OAuth2ClientDefaults.SCOPES,
+                OAuth2ClientDefaults.CLIENT_SETTINGS,
+                OAuth2ClientDefaults.TOKEN_SETTINGS
         );
     }
 
@@ -250,8 +217,7 @@ public class SysProductServiceImpl extends ServiceImpl<SysProductMapper, SysProd
             // 同步更新 oauth2_registered_client 表中的 redirect_uris 和 client_name
             // 使用 productKey（Client ID）作为关联条件
             String redirectUriStr = String.join(",", request.getRedirectUris());
-            jdbcTemplate.update(
-                    "UPDATE oauth2_registered_client SET redirect_uris = ?, client_name = ? WHERE client_id = ?",
+            oauth2ClientMapper.updateRedirectUris(
                     redirectUriStr,
                     request.getProductName(),  // 同步更新客户端名称
                     product.getProductKey()    // 按 client_id 定位记录
@@ -287,10 +253,7 @@ public class SysProductServiceImpl extends ServiceImpl<SysProductMapper, SysProd
         productMapper.deleteById(id);
 
         // 按 client_id 从 oauth2_registered_client 表删除对应客户端
-        jdbcTemplate.update(
-                "DELETE FROM oauth2_registered_client WHERE client_id = ?",
-                product.getProductKey()
-        );
+        oauth2ClientMapper.deleteByClientId(product.getProductKey());
     }
 
     /**

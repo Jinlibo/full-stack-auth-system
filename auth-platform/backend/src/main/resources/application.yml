@@ -32,6 +32,8 @@ mybatis-plus:
 # 前端SPA地址（OAuth2登录/授权页面所在地）
 app:
   frontend-url: http://localhost:5173
+  # product-app 的 OAuth2 回调地址（用于 DataInitializer 初始化内置客户端）
+  product-app-redirect-uri: http://localhost:5174/oauth/callback
 
 # JWT配置
 auth:
