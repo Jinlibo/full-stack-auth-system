@@ -79,9 +79,6 @@ export const useUserStore = defineStore('user', () => {
         // 持久化 Access Token 到 localStorage（页面刷新后可恢复登录状态）
         localStorage.setItem('auth_token', token.value)
 
-        // 持久化 Refresh Token（为后续实现无感续期做准备）
-        localStorage.setItem('auth_refresh_token', res.data.refreshToken)
-
         return res
     }
 
@@ -119,7 +116,6 @@ export const useUserStore = defineStore('user', () => {
         userInfo.value = null
         // 清除 localStorage 中的持久化数据
         localStorage.removeItem('auth_token')
-        localStorage.removeItem('auth_refresh_token')
     }
 
     /**

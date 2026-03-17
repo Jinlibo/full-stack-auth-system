@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * JWT 认证过滤器
@@ -49,20 +50,10 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    /**
-     * JWT 工具类：负责 Token 的解析和验证
-     */
     private final JwtUtil jwtUtil;
-
-    /**
-     * UserDetails 服务：根据用户名从数据库加载用户信息和权限
-     */
     private final UserDetailsServiceImpl userDetailsService;
-
-    /**
-     * Redis 客户端：用于检查 Token 是否在黑名单中（logout 后的失效机制）
-     */
     private final StringRedisTemplate redisTemplate;
+    private final JwtProperties jwtProperties;
 
     /**
      * 核心过滤逻辑
@@ -94,47 +85,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // 若请求头不存在或格式不正确，extractToken() 返回 null，跳过认证逻辑
         String token = extractToken(request);
 
-        // 第二步：Token 存在且签名有效（未过期、未被篡改）时，进行完整认证
+        // 第二步：Token 存在且 JWT 签名有效时，进行 Redis 会话验证
         if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
-
-            // 第三步：检查 Token 是否在 Redis 黑名单中
-            // 用户 logout 时，后端会将 Token 存入 "token:blacklist:{token}" key
-            // hasKey() 返回 null 时也视为不在黑名单（Redis 连接问题时的容错）
-            Boolean blacklisted = redisTemplate.hasKey("token:blacklist:" + token);
-            if (Boolean.TRUE.equals(blacklisted)) {
-                // Token 已被拉黑（用户已 logout），跳过认证，后续请求将被 Spring Security 拒绝
-                filterChain.doFilter(request, response);
-                return;
-            }
-
             try {
-                // 第四步：解析 Token 中的用户信息
-                // getUserIdFromToken() 和 parseToken() 不会重复验证签名，直接读取 Payload
+                // 第三步：从 JWT 解出 userId，查 Redis 中存储的 token 值
                 Long userId = jwtUtil.getUserIdFromToken(token);
-                String username = jwtUtil.parseToken(token).get("username", String.class);
+                String storedToken = redisTemplate.opsForValue().get("token:access:" + userId);
 
-                // 第五步：根据用户名从数据库加载 UserDetails（包含完整权限列表）
-                // 注意：此处每次请求都会查询数据库，性能优化方向是引入本地缓存（Caffeine）
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                // 第四步：Redis 中的 token 必须与当前请求的 token 完全匹配
+                // 不匹配说明：用户已退出、或已在其他设备重新登录（旧 token 被覆盖）
+                if (token.equals(storedToken)) {
+                    // 第五步：滑动窗口 —— 刷新 Redis TTL（活跃用户永不掉线）
+                    redisTemplate.expire("token:access:" + userId,
+                            jwtProperties.getExpiration(), TimeUnit.MILLISECONDS);
 
-                // 第六步：构建 Spring Security 认证对象
-                // UsernamePasswordAuthenticationToken(principal, credentials, authorities)
-                // - principal：UserDetails 对象（包含用户信息）
-                // - credentials：null（Token 认证不需要密码，设为 null 以清除敏感信息）
-                // - authorities：用户的权限列表（GrantedAuthority 集合，来自 UserDetails）
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-
-                // 附加请求详情（IP 地址、Session ID 等），用于审计日志
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                // 第七步：将认证信息写入 SecurityContext
-                // 后续的 @PreAuthorize 权限校验、Security 相关注解都依赖此认证信息
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-
+                    // 第六步：加载用户权限，写入 SecurityContext
+                    String username = jwtUtil.parseToken(token).get("username", String.class);
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             } catch (Exception e) {
-                // 认证过程中的异常（如数据库查询失败、用户已被删除等）
-                // 仅记录 warn 日志，不抛出异常，让 Security 后续处理（返回 401）
                 log.warn("JWT 认证失败，请求: {} {}，原因: {}",
                         request.getMethod(), request.getRequestURI(), e.getMessage());
             }

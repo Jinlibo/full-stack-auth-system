@@ -16,7 +16,6 @@ export const useUserStore = defineStore('user', () => {
         token.value = data.accessToken
         userInfo.value = data.userInfo
         localStorage.setItem('product_token', data.accessToken)
-        localStorage.setItem('product_refresh_token', data.refreshToken)
     }
 
     async function fetchUserInfo() {
@@ -29,7 +28,6 @@ export const useUserStore = defineStore('user', () => {
         token.value = '';
         userInfo.value = null;
         localStorage.removeItem('product_token');
-        localStorage.removeItem('product_refresh_token')
     }
 
     return {token, userInfo, login, setAuth, fetchUserInfo, logout}

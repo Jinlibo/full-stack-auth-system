@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "auth.jwt")
 public class JwtProperties {
     private String secret;
-    private Long expiration = 7200000L;
-    private Long refreshExpiration = 604800000L;
+    private Long expiration = 7200000L;  // Redis session TTL（2小时），同时作为 JWT 兜底过期的参考值
     private String issuer = "auth-platform";
 }

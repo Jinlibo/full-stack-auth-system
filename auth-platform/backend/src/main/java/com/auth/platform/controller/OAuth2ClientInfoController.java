@@ -4,11 +4,14 @@ import com.auth.platform.entity.SysProduct;
 import com.auth.platform.mapper.SysProductMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,12 +21,16 @@ import java.util.Map;
  * client application info (name, logo, enabled status).
  * Mapped under /api/oauth2/** which is in the permitAll list.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/oauth2")
 @RequiredArgsConstructor
 public class OAuth2ClientInfoController {
 
     private final SysProductMapper productMapper;
+    private final RegisteredClientRepository registeredClientRepository;
+    private final OAuth2AuthorizationConsentService consentService;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/client-info")
     public ResponseEntity<Map<String, Object>> clientInfo(@RequestParam String clientId) {
@@ -43,5 +50,36 @@ public class OAuth2ClientInfoController {
             info.put("homepageUrl", product.getHomepageUrl());
         }
         return ResponseEntity.ok(info);
+    }
+
+    @DeleteMapping("/revoke-consent")
+    public ResponseEntity<Map<String, Object>> revokeConsent(@RequestBody Map<String, String> body) {
+        String clientId = body.get("clientId");
+        String clientSecret = body.get("clientSecret");
+        String username = body.get("username");
+
+        Map<String, Object> result = new HashMap<>();
+
+        RegisteredClient registeredClient = registeredClientRepository.findByClientId(clientId);
+        if (registeredClient == null) {
+            result.put("success", false);
+            result.put("message", "客户端不存在");
+            return ResponseEntity.badRequest().body(result);
+        }
+
+        if (!passwordEncoder.matches(clientSecret, registeredClient.getClientSecret())) {
+            result.put("success", false);
+            result.put("message", "客户端密钥验证失败");
+            return ResponseEntity.badRequest().body(result);
+        }
+
+        OAuth2AuthorizationConsent consent = consentService.findById(registeredClient.getId(), username);
+        if (consent != null) {
+            consentService.remove(consent);
+            log.info("已撤销用户 [{}] 对客户端 [{}] 的授权同意", username, clientId);
+        }
+
+        result.put("success", true);
+        return ResponseEntity.ok(result);
     }
 }

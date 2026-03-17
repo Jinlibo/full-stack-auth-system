@@ -1,7 +1,10 @@
 package com.product.app.service.impl;
 
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
 import com.product.app.common.BusinessException;
 import com.product.app.common.PageQuery;
+import com.product.app.config.OAuth2Properties;
 import com.product.app.dto.UserInfo;
 import com.product.app.dto.UserUpdateRequest;
 import com.product.app.entity.AppUser;
@@ -14,17 +17,20 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> implements AppUserService {
 
     private final AppUserMapper userMapper;
     private final AppUserOauthMapper oauthMapper;
+    private final OAuth2Properties oauth2Props;
 
     @Override
     public UserInfo getUserInfo(Long userId) {
@@ -83,6 +89,13 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         AppUser user = userMapper.selectById(userId);
         if (user == null) throw new BusinessException(404, "用户不存在");
 
+        // 查出绑定记录（需获取 oauthUsername 用于撤销同意）
+        AppUserOauth record = oauthMapper.selectOne(
+                new LambdaQueryWrapper<AppUserOauth>()
+                        .eq(AppUserOauth::getUserId, userId)
+                        .eq(AppUserOauth::getOauthProvider, provider));
+        if (record == null) throw new BusinessException(404, "未找到该绑定关系");
+
         // 检查是否满足解绑条件
         String password = user.getPassword();
         boolean hasPassword = password != null && !password.isEmpty();
@@ -92,10 +105,24 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
             throw new BusinessException(400, "解绑失败：您没有设置密码，且这是您最后一个登录方式，解绑后将无法登录");
         }
 
-        int deleted = oauthMapper.delete(
-                new LambdaQueryWrapper<AppUserOauth>()
-                        .eq(AppUserOauth::getUserId, userId)
-                        .eq(AppUserOauth::getOauthProvider, provider));
-        if (deleted == 0) throw new BusinessException(404, "未找到该绑定关系");
+        oauthMapper.deleteById(record.getId());
+
+        // 撤销 auth-platform 上的授权同意，使下次绑定时重新展示授权页
+        try {
+            String revokeUrl = oauth2Props.getAuthServer().getBaseUrl() + "/api/oauth2/revoke-consent";
+            String body = String.format("{\"clientId\":\"%s\",\"clientSecret\":\"%s\",\"username\":\"%s\"}",
+                    oauth2Props.getClient().getClientId(),
+                    oauth2Props.getClient().getClientSecret(),
+                    record.getOauthUsername());
+            HttpResponse resp = HttpRequest.delete(revokeUrl)
+                    .body(body, "application/json")
+                    .timeout(5000)
+                    .execute();
+            if (resp.getStatus() != 200) {
+                log.warn("撤销 OAuth 同意失败，状态码: {}, 响应: {}", resp.getStatus(), resp.body());
+            }
+        } catch (Exception e) {
+            log.warn("撤销 OAuth 同意时发生异常，不影响解绑主流程: {}", e.getMessage());
+        }
     }
 }

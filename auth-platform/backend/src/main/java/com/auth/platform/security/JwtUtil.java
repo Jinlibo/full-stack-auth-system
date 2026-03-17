@@ -103,40 +103,11 @@ public class JwtUtil {
                 .issuer(jwtProperties.getIssuer())
                 // iat claim：Token 签发时间
                 .issuedAt(new Date())
-                // exp claim：Token 过期时间 = 当前时间 + 配置的有效期（毫秒）
-                .expiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
+                // exp claim：30 天兜底过期（Redis 是 session 唯一来源，JWT 过期仅作故障兜底）
+                .expiration(new Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000))
                 // 使用 HMAC-SHA256 签名（signWith 自动识别密钥长度并选择算法）
                 .signWith(getSigningKey())
                 // 构建并序列化为 Base64URL 编码的 JWT 字符串
-                .compact();
-    }
-
-    /**
-     * 生成 Refresh Token（长期刷新令牌）
-     *
-     * <p>Refresh Token 不携带权限信息，仅用于换取新的 Access Token。
-     * 有效期较长（默认 7 天），客户端应安全存储（如 HttpOnly Cookie 或安全存储）。
-     *
-     * <p>与 Access Token 的区别：
-     * <ul>
-     *   <li>多一个 type="refresh" 的 claim，用于在刷新接口中区分两种 Token</li>
-     *   <li>不包含 username 和 roles 等信息（减少 Payload 体积，且刷新时会重新查库获取最新权限）</li>
-     *   <li>有效期更长（由 jwt.refresh-expiration 配置，默认 7 天）</li>
-     * </ul>
-     *
-     * @param userId 用户 ID（存入 sub claim，用于刷新时查找用户）
-     * @return 签名后的 Refresh Token 字符串
-     */
-    public String generateRefreshToken(Long userId) {
-        return Jwts.builder()
-                .subject(String.valueOf(userId))
-                // 标记此 Token 的类型为 refresh，防止 Access Token 被当作 Refresh Token 使用
-                .claim("type", "refresh")
-                .issuer(jwtProperties.getIssuer())
-                .issuedAt(new Date())
-                // 使用更长的过期时间（refreshExpiration）
-                .expiration(new Date(System.currentTimeMillis() + jwtProperties.getRefreshExpiration()))
-                .signWith(getSigningKey())
                 .compact();
     }
 

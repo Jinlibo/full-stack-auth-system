@@ -321,8 +321,8 @@ public class AuthServiceImpl implements AuthService {
     public void logout(String token) {
         if (token != null && token.startsWith("Bearer ")) token = token.substring(7);
         if (jwtUtil.validateToken(token)) {
-            redisTemplate.opsForValue().set("token:blacklist:" + token, "1",
-                    jwtUtil.getExpiration(), TimeUnit.MILLISECONDS);
+            Long userId = jwtUtil.getUserIdFromToken(token);
+            redisTemplate.delete("token:access:" + userId);
         }
     }
 
@@ -402,12 +402,17 @@ public class AuthServiceImpl implements AuthService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", loginUser.getRoles());
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), claims);
-        String refreshToken = jwtUtil.generateRefreshToken(user.getId());
+
+        // 存入 Redis，TTL=2h（滑动窗口，每次有效请求会刷新）
+        redisTemplate.opsForValue().set(
+                "token:access:" + user.getId(),
+                accessToken,
+                jwtUtil.getExpiration(),
+                TimeUnit.MILLISECONDS
+        );
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .expiresIn(jwtUtil.getExpiration() / 1000)
                 .userInfo(buildUserInfo(user, loginUser.getRoles(), loginUser.getPermissions()))
                 .build();
     }

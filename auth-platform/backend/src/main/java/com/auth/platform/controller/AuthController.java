@@ -28,7 +28,6 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/auth")
-// @RequiredArgsConstructor：Lombok 注解，自动生成包含所有 final 字段的构造函数，实现依赖注入
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -99,31 +98,6 @@ public class AuthController {
     public R<Void> register(@Valid @RequestBody RegisterRequest request) {
         authService.register(request);
         return R.ok();
-    }
-
-    /**
-     * 刷新 Access Token 接口
-     *
-     * <p>当 Access Token 过期后（默认 2 小时），客户端可使用长期有效的 Refresh Token
-     * 调用此接口换取新的 Access Token，无需用户重新登录（无感刷新）。
-     *
-     * <p>请求示例：
-     * <pre>POST /api/auth/refresh?refreshToken=eyJhbGci...</pre>
-     *
-     * <p>刷新 Token 的安全机制：
-     * <ul>
-     *   <li>验证 refreshToken 的签名和有效期</li>
-     *   <li>检查 refreshToken 的 type claim 必须为 "refresh"，防止 Access Token 被滥用</li>
-     *   <li>验证对应用户是否仍存在且状态正常</li>
-     *   <li>返回全新的 Access Token 和 Refresh Token（旧的 Refresh Token 同时失效）</li>
-     * </ul>
-     *
-     * @param refreshToken URL 查询参数中的 Refresh Token
-     * @return 新的 JWT 令牌对和用户信息
-     */
-    @PostMapping("/refresh")
-    public R<LoginResponse> refresh(@RequestParam String refreshToken) {
-        return R.ok(authService.refreshToken(refreshToken));
     }
 
     /**

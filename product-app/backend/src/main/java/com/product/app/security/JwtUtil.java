@@ -16,8 +16,6 @@ public class JwtUtil {
     private String secret;
     @Value("${app.jwt.expiration}")
     private Long expiration;
-    @Value("${app.jwt.refresh-expiration}")
-    private Long refreshExpiration;
     @Value("${app.jwt.issuer}")
     private String issuer;
 
@@ -28,14 +26,7 @@ public class JwtUtil {
     public String generateAccessToken(Long userId, String username, Map<String, Object> extra) {
         return Jwts.builder().subject(String.valueOf(userId)).claim("username", username)
                 .claims(extra).issuer(issuer).issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey()).compact();
-    }
-
-    public String generateRefreshToken(Long userId) {
-        return Jwts.builder().subject(String.valueOf(userId)).claim("type", "refresh")
-                .issuer(issuer).issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
+                .expiration(new Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000))
                 .signWith(getSigningKey()).compact();
     }
 

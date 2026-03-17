@@ -133,10 +133,8 @@ public class AuthServiceImpl implements AuthService {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", loginUser.getRoles());
 
-        // 第四步：生成 Access Token（短期，含用户身份和角色信息）
+        // 第四步：生成 Access Token（JWT 30天兜底，实际由 Redis TTL 控制会话有效期）
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), claims);
-        // 生成 Refresh Token（长期，仅含用户 ID，不含角色信息）
-        String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
         // 第五步：将 Access Token 缓存到 Redis
         // 作用：支持单点登录（后续登录会覆盖），也便于主动失效（删除此 key 即可）
@@ -165,9 +163,6 @@ public class AuthServiceImpl implements AuthService {
         UserInfo userInfo = buildUserInfo(user, loginUser);
         return LoginResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                // expiresIn：秒为单位（毫秒 / 1000），前端用于计算 Token 剩余有效期
-                .expiresIn(jwtProperties.getExpiration() / 1000)
                 .userInfo(userInfo)
                 .build();
     }
@@ -221,79 +216,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 刷新 Access Token
-     *
-     * <p>无感刷新流程：
-     * <ol>
-     *   <li>验证 Refresh Token 的签名和有效期</li>
-     *   <li>验证 type claim 必须为 "refresh"（防止用 Access Token 刷新）</li>
-     *   <li>从 Refresh Token 的 sub 中获取用户 ID，查询用户当前状态</li>
-     *   <li>重新查询最新的角色和权限（角色可能在 Token 有效期内被修改）</li>
-     *   <li>生成新的 Access Token 和 Refresh Token（旧 Refresh Token 不立即失效，
-     *       但已被新的替代）</li>
-     *   <li>更新 Redis 中的 Token 缓存</li>
-     * </ol>
-     *
-     * @param refreshToken 客户端持有的 Refresh Token
-     * @return 新的 Token 对和用户信息
-     * @throws BusinessException Refresh Token 无效、过期或用户状态异常时抛出
-     */
-    @Override
-    public LoginResponse refreshToken(String refreshToken) {
-        // 第一步：验证 Refresh Token 的签名和有效期
-        if (!jwtUtil.validateToken(refreshToken)) {
-            throw new BusinessException(401, "Refresh Token 已过期，请重新登录");
-        }
-
-        // 第二步：验证 Token 类型，防止 Access Token 被误用于刷新
-        String type = jwtUtil.parseToken(refreshToken).get("type", String.class);
-        if (!"refresh".equals(type)) {
-            throw new BusinessException(401, "无效的 Refresh Token（类型不匹配）");
-        }
-
-        // 第三步：从 Token 中提取用户 ID，并查询最新的用户状态
-        Long userId = jwtUtil.getUserIdFromToken(refreshToken);
-        SysUser user = userMapper.selectById(userId);
-        if (user == null || user.getStatus() != 1) {
-            throw new BusinessException(401, "用户不存在或账号已被禁用");
-        }
-
-        // 第四步：重新查询最新权限（确保 Token 携带的权限与数据库一致）
-        // 用户角色可能在 Refresh Token 有效期内被管理员修改，需要重新加载
-        var roles = userMapper.selectRoleKeysByUserId(userId);
-        var permissions = userMapper.selectPermissionKeysByUserId(userId);
-
-        // 第五步：生成新的 Token 对
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("roles", roles);
-        String newAccessToken = jwtUtil.generateAccessToken(userId, user.getUsername(), claims);
-        String newRefreshToken = jwtUtil.generateRefreshToken(userId);
-
-        // 第六步：更新 Redis 中的 Access Token 缓存（覆盖旧值）
-        redisTemplate.opsForValue().set(
-                "token:access:" + userId,
-                newAccessToken,
-                jwtProperties.getExpiration(),
-                TimeUnit.MILLISECONDS
-        );
-
-        // 第七步：组装并返回登录响应（同登录接口）
-        UserInfo userInfo = new UserInfo();
-        userInfo.setId(user.getId());
-        userInfo.setUsername(user.getUsername());
-        userInfo.setNickname(user.getNickname());
-        userInfo.setRoles(roles);
-        userInfo.setPermissions(permissions);
-
-        return LoginResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .expiresIn(jwtProperties.getExpiration() / 1000)
-                .userInfo(userInfo)
-                .build();
-    }
-
-    /**
      * 退出登录
      *
      * <p>退出逻辑（双重失效机制）：
@@ -318,22 +240,9 @@ public class AuthServiceImpl implements AuthService {
             token = token.substring(7);
         }
 
-        // 验证 Token 有效性（无效或已过期的 Token 无需加入黑名单）
+        // 删除 Redis 中的用户 session token → token 立即失效
         if (jwtUtil.validateToken(token)) {
             Long userId = jwtUtil.getUserIdFromToken(token);
-
-            // 第一步：将 Token 加入黑名单（使其立即失效，防止被继续使用）
-            // key 格式：token:blacklist:{完整Token字符串}
-            // 值为 "1"（仅需判断 key 是否存在，值无意义）
-            redisTemplate.opsForValue().set(
-                    "token:blacklist:" + token,
-                    "1",
-                    jwtProperties.getExpiration(), // TTL：Token 最大有效期
-                    TimeUnit.MILLISECONDS
-            );
-
-            // 第二步：删除 Redis 中缓存的用户 Access Token
-            // 配合黑名单，双重保证 Token 失效
             redisTemplate.delete("token:access:" + userId);
         }
 

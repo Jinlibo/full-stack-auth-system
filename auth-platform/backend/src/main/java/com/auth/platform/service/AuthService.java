@@ -7,7 +7,5 @@ public interface AuthService {
 
     void register(RegisterRequest request);
 
-    LoginResponse refreshToken(String refreshToken);
-
     void logout(String token);
 }

@@ -37,8 +37,7 @@ app:
 auth:
   jwt:
     secret: YXV0aC1wbGF0Zm9ybS1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tMjAyNA==
-    expiration: 7200000       # 2小时
-    refresh-expiration: 604800000  # 7天
+    expiration: 7200000       # Redis session TTL（2小时）；JWT 本身设 30 天兜底
     issuer: auth-platform
 
 # 跨域配置
