@@ -107,6 +107,9 @@
 
             <!-- 默认账号提示 -->
             <p class="hint-text">默认账号：admin / admin123</p>
+
+            <!-- 注册链接 -->
+            <p class="register-link">还没有账号？<el-link type="primary" @click="$router.push('/register')">立即注册</el-link></p>
           </el-tab-pane>
 
           <!-- ── Tab 2：OAuth2 第三方授权登录 ── -->
@@ -424,6 +427,14 @@ const handleOAuthLogin = async () => {
   font-size: 13px;
   color: #c0c4cc;
   margin: 4px 0 0;
+}
+
+/* 注册链接 */
+.register-link {
+  text-align: center;
+  font-size: 13px;
+  color: #909399;
+  margin: 8px 0 0;
 }
 
 /* ===================================================================

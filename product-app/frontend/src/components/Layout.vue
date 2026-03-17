@@ -50,6 +50,16 @@
           <template #title>用户管理</template>
         </el-menu-item>
 
+        <!-- 系统管理：角色管理 + 权限管理 -->
+        <el-sub-menu index="/system">
+          <template #title>
+            <el-icon><Setting/></el-icon>
+            <span>系统管理</span>
+          </template>
+          <el-menu-item class="menu-item" index="/system/roles">角色管理</el-menu-item>
+          <el-menu-item class="menu-item" index="/system/permissions">权限管理</el-menu-item>
+        </el-sub-menu>
+
         <!-- 个人中心 -->
         <el-menu-item class="menu-item" index="/profile">
           <el-icon>
@@ -277,6 +287,42 @@ const handleLogout = async () => {
 /* 折叠后菜单项居中（el-aside 折叠时自动处理） */
 .sidebar-menu.el-menu--collapse {
   width: 64px;
+}
+
+/* 子菜单标题样式：与普通菜单项一致 */
+.sidebar-menu :deep(.el-sub-menu__title) {
+  color: #a8b2c1 !important;
+  border-radius: 8px;
+  margin: 2px 8px;
+  height: 44px;
+  line-height: 44px;
+}
+
+.sidebar-menu :deep(.el-sub-menu__title:hover) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #e0e6ed !important;
+}
+
+/* 子菜单弹出层（折叠状态下）背景色 */
+.sidebar-menu :deep(.el-menu--popup) {
+  background: #1a1d23 !important;
+}
+
+/* 子菜单中的菜单项 */
+.sidebar-menu :deep(.el-sub-menu .el-menu-item) {
+  color: #a8b2c1;
+  background: transparent;
+  padding-left: 48px !important;
+}
+
+.sidebar-menu :deep(.el-sub-menu .el-menu-item:hover) {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #e0e6ed !important;
+}
+
+.sidebar-menu :deep(.el-sub-menu .el-menu-item.is-active) {
+  background: linear-gradient(90deg, rgba(17, 153, 142, 0.3), rgba(56, 239, 125, 0.15)) !important;
+  color: #38ef7d !important;
 }
 
 /* ===================================================================

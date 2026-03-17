@@ -23,6 +23,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -44,6 +46,9 @@ public class AuthServiceImpl implements AuthService {
     private final AppUserRoleMapper userRoleMapper;
     private final OAuth2Properties oauth2Props;
     private final StringRedisTemplate redisTemplate;
+    private final PasswordEncoder passwordEncoder;
+
+    private static final String OAUTH_PENDING_PREFIX = "oauth:pending:";
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -51,6 +56,32 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
         LoginUser loginUser = (LoginUser) auth.getPrincipal();
         return buildLoginResponse(loginUser.getUser(), loginUser);
+    }
+
+    @Override
+    @Transactional
+    public void register(RegisterRequest request) {
+        // 检查用户名是否已存在
+        Long count = userMapper.selectCount(
+                new LambdaQueryWrapper<AppUser>().eq(AppUser::getUsername, request.getUsername()));
+        if (count > 0) {
+            throw new BusinessException(400, "用户名已存在");
+        }
+
+        // 创建用户
+        AppUser user = new AppUser();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEmail(request.getEmail());
+        user.setNickname(request.getNickname() != null ? request.getNickname() : request.getUsername());
+        user.setStatus(1);
+        userMapper.insert(user);
+
+        // 分配默认角色（普通用户, id=2）
+        AppUserRole ur = new AppUserRole();
+        ur.setUserId(user.getId());
+        ur.setRoleId(2L);
+        userRoleMapper.insert(ur);
     }
 
     @Override
@@ -104,40 +135,140 @@ public class AuthServiceImpl implements AuthService {
                         .eq(AppUserOauth::getOauthProvider, provider)
                         .eq(AppUserOauth::getOauthUid, oauthUid));
 
-        AppUser localUser;
         if (oauthBinding != null) {
-            // 已绑定,更新token
-            localUser = userMapper.selectById(oauthBinding.getUserId());
+            // 已绑定，更新 token
+            AppUser localUser = userMapper.selectById(oauthBinding.getUserId());
             oauthBinding.setAccessToken(accessToken);
             oauthBinding.setRefreshToken(refreshToken);
             oauthBinding.setOauthUsername(oauthUsername);
             oauthBinding.setOauthAvatar(avatar);
             oauthMapper.updateById(oauthBinding);
+
+            // 4. 生成本地 JWT
+            var roles = userMapper.selectRoleKeysByUserId(localUser.getId());
+            var perms = userMapper.selectPermissionKeysByUserId(localUser.getId());
+            LoginUser loginUser = new LoginUser(localUser, roles, perms);
+            return buildLoginResponse(localUser, loginUser);
         } else {
-            // 新用户: 创建本地用户 + 绑定
-            // 优先使用授权服务器上的真实用户名；若与已有本地账号冲突则加后缀区分
-            String desiredUsername = oauthUsername;
-            Long conflict = userMapper.selectCount(
-                    new LambdaQueryWrapper<AppUser>().eq(AppUser::getUsername, desiredUsername));
-            if (conflict > 0) {
-                desiredUsername = oauthUsername + "_" + oauthUid;
-            }
-            localUser = new AppUser();
-            localUser.setUsername(desiredUsername);
-            localUser.setNickname(nickname != null ? nickname : oauthUsername);
-            localUser.setEmail(email);
-            localUser.setAvatar(avatar);
-            localUser.setStatus(1);
-            userMapper.insert(localUser);
+            // 首次登录，未绑定：将 OAuth 信息存入 Redis，让前端选择创建新账号或绑定已有账号
+            String pendingToken = UUID.randomUUID().toString();
+            JSONObject pendingData = new JSONObject();
+            pendingData.put("oauthUid", oauthUid);
+            pendingData.put("oauthUsername", oauthUsername);
+            pendingData.put("nickname", nickname);
+            pendingData.put("email", email);
+            pendingData.put("avatar", avatar);
+            pendingData.put("accessToken", accessToken);
+            pendingData.put("refreshToken", refreshToken);
+            pendingData.put("provider", provider);
+            redisTemplate.opsForValue().set(
+                    OAUTH_PENDING_PREFIX + pendingToken,
+                    pendingData.toString(),
+                    10, TimeUnit.MINUTES);
 
-            // 分配默认角色(普通用户, id=2)
-            AppUserRole ur = new AppUserRole();
-            ur.setUserId(localUser.getId());
-            ur.setRoleId(2L);
-            userRoleMapper.insert(ur);
+            return LoginResponse.builder()
+                    .pendingBind(true)
+                    .oauthPendingToken(pendingToken)
+                    .build();
+        }
+    }
 
-            // 创建绑定
-            oauthBinding = new AppUserOauth();
+    @Override
+    @Transactional
+    public LoginResponse oauthCreateNew(String oauthPendingToken) {
+        String redisKey = OAUTH_PENDING_PREFIX + oauthPendingToken;
+        String json = redisTemplate.opsForValue().get(redisKey);
+        if (json == null) {
+            throw new BusinessException(400, "临时授权已过期，请重新发起 OAuth 登录");
+        }
+
+        JSONObject data = JSONUtil.parseObj(json);
+        String oauthUid = data.getStr("oauthUid");
+        String oauthUsername = data.getStr("oauthUsername");
+        String nickname = data.getStr("nickname");
+        String email = data.getStr("email");
+        String avatar = data.getStr("avatar");
+        String accessToken = data.getStr("accessToken");
+        String refreshToken = data.getStr("refreshToken");
+        String provider = data.getStr("provider");
+
+        // 创建本地用户
+        String desiredUsername = oauthUsername;
+        Long conflict = userMapper.selectCount(
+                new LambdaQueryWrapper<AppUser>().eq(AppUser::getUsername, desiredUsername));
+        if (conflict > 0) {
+            desiredUsername = oauthUsername + "_" + oauthUid;
+        }
+        AppUser localUser = new AppUser();
+        localUser.setUsername(desiredUsername);
+        localUser.setNickname(nickname != null ? nickname : oauthUsername);
+        localUser.setEmail(email);
+        localUser.setAvatar(avatar);
+        localUser.setStatus(1);
+        userMapper.insert(localUser);
+
+        // 分配默认角色（普通用户, id=2）
+        AppUserRole ur = new AppUserRole();
+        ur.setUserId(localUser.getId());
+        ur.setRoleId(2L);
+        userRoleMapper.insert(ur);
+
+        // 创建 OAuth 绑定
+        AppUserOauth oauthBinding = new AppUserOauth();
+        oauthBinding.setUserId(localUser.getId());
+        oauthBinding.setOauthProvider(provider);
+        oauthBinding.setOauthUid(oauthUid);
+        oauthBinding.setOauthUsername(oauthUsername);
+        oauthBinding.setOauthAvatar(avatar);
+        oauthBinding.setAccessToken(accessToken);
+        oauthBinding.setRefreshToken(refreshToken);
+        oauthMapper.insert(oauthBinding);
+
+        // 删除 Redis 临时 key
+        redisTemplate.delete(redisKey);
+
+        // 生成本地 JWT
+        var roles = userMapper.selectRoleKeysByUserId(localUser.getId());
+        var perms = userMapper.selectPermissionKeysByUserId(localUser.getId());
+        LoginUser loginUser = new LoginUser(localUser, roles, perms);
+        return buildLoginResponse(localUser, loginUser);
+    }
+
+    @Override
+    @Transactional
+    public LoginResponse oauthBindExisting(String oauthPendingToken, String username, String password) {
+        String redisKey = OAUTH_PENDING_PREFIX + oauthPendingToken;
+        String json = redisTemplate.opsForValue().get(redisKey);
+        if (json == null) {
+            throw new BusinessException(400, "临时授权已过期，请重新发起 OAuth 登录");
+        }
+
+        JSONObject data = JSONUtil.parseObj(json);
+        String oauthUid = data.getStr("oauthUid");
+        String oauthUsername = data.getStr("oauthUsername");
+        String avatar = data.getStr("avatar");
+        String accessToken = data.getStr("accessToken");
+        String refreshToken = data.getStr("refreshToken");
+        String provider = data.getStr("provider");
+
+        // 验证用户名密码
+        Authentication auth = authManager.authenticate(
+                new UsernamePasswordAuthenticationToken(username, password));
+        LoginUser loginUser = (LoginUser) auth.getPrincipal();
+        AppUser localUser = loginUser.getUser();
+
+        // 检查该 OAuth 账号是否已绑定其他用户
+        AppUserOauth existing = oauthMapper.selectOne(
+                new LambdaQueryWrapper<AppUserOauth>()
+                        .eq(AppUserOauth::getOauthProvider, provider)
+                        .eq(AppUserOauth::getOauthUid, oauthUid));
+        if (existing != null && !existing.getUserId().equals(localUser.getId())) {
+            throw new BusinessException(400, "该OAuth账号已绑定到其他用户");
+        }
+
+        if (existing == null) {
+            // 创建绑定关系
+            AppUserOauth oauthBinding = new AppUserOauth();
             oauthBinding.setUserId(localUser.getId());
             oauthBinding.setOauthProvider(provider);
             oauthBinding.setOauthUid(oauthUid);
@@ -148,10 +279,10 @@ public class AuthServiceImpl implements AuthService {
             oauthMapper.insert(oauthBinding);
         }
 
-        // 4. 生成本地JWT
-        var roles = userMapper.selectRoleKeysByUserId(localUser.getId());
-        var perms = userMapper.selectPermissionKeysByUserId(localUser.getId());
-        LoginUser loginUser = new LoginUser(localUser, roles, perms);
+        // 删除 Redis 临时 key
+        redisTemplate.delete(redisKey);
+
+        // 生成本地 JWT
         return buildLoginResponse(localUser, loginUser);
     }
 

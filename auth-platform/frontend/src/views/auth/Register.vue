@@ -1,11 +1,11 @@
 <template>
-  <div class="login-bg">
-    <!-- Decorative blobs -->
+  <div class="register-bg">
+    <!-- 装饰性 blob -->
     <div class="blob blob-1"></div>
     <div class="blob blob-2"></div>
 
-    <div class="login-wrapper">
-      <!-- Left brand panel -->
+    <div class="register-wrapper">
+      <!-- 左侧品牌展示区（与 Login.vue 保持一致） -->
       <div class="brand-panel">
         <div class="brand-logo">
           <svg fill="none" height="48" viewBox="0 0 48 48" width="48">
@@ -32,57 +32,97 @@
         </div>
       </div>
 
-      <!-- Right login form -->
+      <!-- 右侧注册表单 -->
       <div class="form-panel">
         <div class="form-inner">
-          <h2 class="form-title">欢迎回来</h2>
-          <p class="form-sub">请使用管理员账号登录</p>
+          <h2 class="form-title">创建账号</h2>
+          <p class="form-sub">填写信息完成注册</p>
 
-          <el-form ref="formRef" :model="form" :rules="rules" class="login-form" @submit.prevent="handleLogin">
+          <el-form
+              ref="formRef"
+              :model="form"
+              :rules="rules"
+              class="register-form"
+              @submit.prevent="handleRegister"
+          >
+            <!-- 用户名 -->
             <el-form-item prop="username">
               <el-input
                   v-model="form.username"
                   autocomplete="username"
-                  placeholder="用户名"
+                  placeholder="用户名（必填）"
                   prefix-icon="User"
                   size="large"
               />
             </el-form-item>
+
+            <!-- 密码 -->
             <el-form-item prop="password">
               <el-input
                   v-model="form.password"
-                  autocomplete="current-password"
-                  placeholder="密码"
+                  autocomplete="new-password"
+                  placeholder="密码（至少 6 位）"
                   prefix-icon="Lock"
                   show-password
                   size="large"
                   type="password"
               />
             </el-form-item>
+
+            <!-- 确认密码 -->
+            <el-form-item prop="confirmPassword">
+              <el-input
+                  v-model="form.confirmPassword"
+                  autocomplete="new-password"
+                  placeholder="确认密码"
+                  prefix-icon="Lock"
+                  show-password
+                  size="large"
+                  type="password"
+              />
+            </el-form-item>
+
+            <!-- 邮箱 -->
+            <el-form-item prop="email">
+              <el-input
+                  v-model="form.email"
+                  autocomplete="email"
+                  placeholder="邮箱（必填）"
+                  prefix-icon="Message"
+                  size="large"
+              />
+            </el-form-item>
+
+            <!-- 手机号（可选） -->
+            <el-form-item prop="phone">
+              <el-input
+                  v-model="form.phone"
+                  autocomplete="tel"
+                  placeholder="手机号（可选）"
+                  prefix-icon="Phone"
+                  size="large"
+              />
+            </el-form-item>
+
+            <!-- 提交按钮 -->
             <el-form-item>
               <el-button
                   :loading="loading"
-                  class="login-btn"
+                  class="register-btn"
                   native-type="submit"
                   size="large"
                   type="primary"
-                  @click="handleLogin"
+                  @click="handleRegister"
               >
-                {{ loading ? '登录中...' : '登 录' }}
+                {{ loading ? '注册中...' : '立即注册' }}
               </el-button>
             </el-form-item>
           </el-form>
 
-          <div class="register-hint">
-            还没有账号？
-            <el-link type="primary" @click="$router.push('/register')">立即注册</el-link>
-          </div>
-
+          <!-- 已有账号跳转登录 -->
           <div class="login-hint">
-            <el-icon>
-              <InfoFilled/>
-            </el-icon>
-            默认账号：admin &nbsp;/&nbsp; admin123
+            已有账号？
+            <el-link type="primary" @click="router.push('/login')">立即登录</el-link>
           </div>
         </div>
       </div>
@@ -93,28 +133,86 @@
 <script setup>
 import {ref, reactive} from 'vue'
 import {useRouter} from 'vue-router'
-import {useUserStore} from '../../store/user'
 import {ElMessage} from 'element-plus'
+import {register} from '../../api/auth'
 
 const router = useRouter()
-const userStore = useUserStore()
 const formRef = ref(null)
 const loading = ref(false)
-const form = reactive({username: '', password: ''})
-const rules = {
-  username: [{required: true, message: '请输入用户名', trigger: 'blur'}],
-  password: [{required: true, message: '请输入密码', trigger: 'blur'}],
+
+// 表单数据
+const form = reactive({
+  username: '',
+  password: '',
+  confirmPassword: '',
+  email: '',
+  phone: '',
+})
+
+// 确认密码自定义校验
+const validateConfirmPassword = (rule, value, callback) => {
+  if (value === '') {
+    callback(new Error('请再次输入密码'))
+  } else if (value !== form.password) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
 }
 
-const handleLogin = async () => {
+// 手机号格式校验（可选字段）
+const validatePhone = (rule, value, callback) => {
+  if (!value) {
+    // 手机号为可选，为空时直接通过
+    callback()
+  } else if (!/^1[3-9]\d{9}$/.test(value)) {
+    callback(new Error('请输入正确的手机号格式'))
+  } else {
+    callback()
+  }
+}
+
+// 表单校验规则
+const rules = {
+  username: [
+    {required: true, message: '请输入用户名', trigger: 'blur'},
+    {min: 2, max: 20, message: '用户名长度为 2~20 位', trigger: 'blur'},
+  ],
+  password: [
+    {required: true, message: '请输入密码', trigger: 'blur'},
+    {min: 6, message: '密码至少 6 位', trigger: 'blur'},
+  ],
+  confirmPassword: [
+    {required: true, validator: validateConfirmPassword, trigger: 'blur'},
+  ],
+  email: [
+    {required: true, message: '请输入邮箱', trigger: 'blur'},
+    {type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur'},
+  ],
+  phone: [
+    {validator: validatePhone, trigger: 'blur'},
+  ],
+}
+
+// 提交注册
+const handleRegister = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   loading.value = true
   try {
-    await userStore.login(form)
-    ElMessage.success('登录成功')
-    router.push('/')
-  } catch (e) { /* handled by interceptor */
+    // 构造请求体，手机号为空时不传
+    const payload = {
+      username: form.username,
+      password: form.password,
+      email: form.email,
+    }
+    if (form.phone) payload.phone = form.phone
+
+    await register(payload)
+    ElMessage.success('注册成功，请登录')
+    router.push('/login')
+  } catch (e) {
+    // 错误由 axios 拦截器统一处理
   } finally {
     loading.value = false
   }
@@ -122,7 +220,7 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.login-bg {
+.register-bg {
   min-height: 100vh;
   background: linear-gradient(135deg, #1a1c2e 0%, #2d2f4a 50%, #1e3a5f 100%);
   display: flex;
@@ -167,11 +265,11 @@ const handleLogin = async () => {
   }
 }
 
-.login-wrapper {
+.register-wrapper {
   display: flex;
   width: 900px;
   max-width: calc(100vw - 48px);
-  min-height: 520px;
+  min-height: 580px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -182,7 +280,7 @@ const handleLogin = async () => {
   z-index: 1;
 }
 
-/* ——— Brand panel ——— */
+/* ——— 品牌面板 ——— */
 .brand-panel {
   flex: 1;
   padding: 56px 48px;
@@ -234,13 +332,13 @@ const handleLogin = async () => {
   flex-shrink: 0;
 }
 
-/* ——— Form panel ——— */
+/* ——— 表单面板 ——— */
 .form-panel {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 56px 48px;
+  padding: 48px 48px;
 }
 
 .form-inner {
@@ -258,39 +356,44 @@ const handleLogin = async () => {
 .form-sub {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.45);
-  margin: 0 0 32px;
+  margin: 0 0 28px;
 }
 
-.login-form :deep(.el-input__wrapper) {
+.register-form :deep(.el-input__wrapper) {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: none !important;
 }
 
-.login-form :deep(.el-input__wrapper:hover),
-.login-form :deep(.el-input__wrapper.is-focus) {
+.register-form :deep(.el-input__wrapper:hover),
+.register-form :deep(.el-input__wrapper.is-focus) {
   border-color: #667eea;
   background: rgba(255, 255, 255, 0.12);
 }
 
-.login-form :deep(.el-input__inner) {
+.register-form :deep(.el-input__inner) {
   color: #fff;
 }
 
-.login-form :deep(.el-input__inner::placeholder) {
+.register-form :deep(.el-input__inner::placeholder) {
   color: rgba(255, 255, 255, 0.35);
 }
 
-.login-form :deep(.el-input__prefix-inner .el-icon),
-.login-form :deep(.el-input__suffix-inner .el-icon) {
+.register-form :deep(.el-input__prefix-inner .el-icon),
+.register-form :deep(.el-input__suffix-inner .el-icon) {
   color: rgba(255, 255, 255, 0.45);
 }
 
-.login-form :deep(.el-form-item__error) {
+.register-form :deep(.el-form-item__error) {
   color: #ff9f7f;
 }
 
-.login-btn {
+/* 减小表单项间距，防止字段过多时超出容器 */
+.register-form :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+.register-btn {
   width: 100%;
   height: 44px;
   font-size: 15px;
@@ -301,25 +404,21 @@ const handleLogin = async () => {
   transition: opacity 0.2s;
 }
 
-.login-btn:hover {
+.register-btn:hover {
   opacity: 0.88;
 }
 
-.register-hint {
+/* 已有账号提示 */
+.login-hint {
   text-align: center;
   font-size: 13px;
   color: #c0c4cc;
   margin-top: 12px;
 }
 
-.login-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 12px;
-  margin-top: 16px;
+.login-hint :deep(.el-link) {
+  font-size: 13px;
+  vertical-align: baseline;
 }
 
 @media (max-width: 700px) {

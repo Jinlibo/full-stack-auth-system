@@ -47,6 +47,12 @@ const routes = [
         meta: {title: '登录', public: true},
     },
     {
+        path: '/register',
+        name: 'Register',
+        component: () => import('../views/auth/Register.vue'),
+        meta: {title: '注册', public: true},
+    },
+    {
         path: '/oauth-login',
         name: 'OAuthLogin',
         // OAuth2 登录授权页：当第三方应用发起 OAuth2 授权时，Spring Authorization Server

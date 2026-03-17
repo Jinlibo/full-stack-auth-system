@@ -9,6 +9,12 @@ const routes = [
         meta: {title: '登录', public: true}
     },
     {
+        path: '/register',
+        name: 'Register',
+        component: () => import('../views/auth/Register.vue'),
+        meta: {title: '注册', public: true}
+    },
+    {
         path: '/oauth/callback',
         name: 'OAuthCallback',
         component: () => import('../views/auth/OAuthCallback.vue'),
@@ -34,6 +40,18 @@ const routes = [
                 name: 'UserList',
                 component: () => import('../views/user/UserList.vue'),
                 meta: {title: '用户管理'}
+            },
+            {
+                path: 'system/roles',
+                name: 'RoleManage',
+                component: () => import('../views/system/RoleManage.vue'),
+                meta: {title: '角色管理'}
+            },
+            {
+                path: 'system/permissions',
+                name: 'PermissionManage',
+                component: () => import('../views/system/PermissionManage.vue'),
+                meta: {title: '权限管理'}
             },
         ]
     },

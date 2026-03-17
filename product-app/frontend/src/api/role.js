@@ -1,0 +1,11 @@
+import request from '../utils/request'
+
+export const pageRoles = (params) => request.get('/roles', {params})
+export const allRoles = () => request.get('/roles/all')
+export const createRole = (data) => request.post('/roles', data)
+export const updateRole = (id, data) => request.put(`/roles/${id}`, data)
+export const deleteRole = (id) => request.delete(`/roles/${id}`)
+export const getRolePermissions = (roleId) => request.get(`/roles/${roleId}/permissions`)
+export const assignRolePermissions = (roleId, permissionIds) => request.post(`/roles/${roleId}/permissions`, {permissionIds})
+export const getUserRoles = (userId) => request.get(`/roles/users/${userId}`)
+export const assignUserRoles = (userId, roleIds) => request.post(`/roles/users/${userId}`, {roleIds})

@@ -80,6 +80,18 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
 
     @Override
     public void unbindOAuth(Long userId, String provider) {
+        AppUser user = userMapper.selectById(userId);
+        if (user == null) throw new BusinessException(404, "用户不存在");
+
+        // 检查是否满足解绑条件
+        String password = user.getPassword();
+        boolean hasPassword = password != null && !password.isEmpty();
+        long oauthCount = oauthMapper.selectCount(
+                new LambdaQueryWrapper<AppUserOauth>().eq(AppUserOauth::getUserId, userId));
+        if (!hasPassword && oauthCount == 1) {
+            throw new BusinessException(400, "解绑失败：您没有设置密码，且这是您最后一个登录方式，解绑后将无法登录");
+        }
+
         int deleted = oauthMapper.delete(
                 new LambdaQueryWrapper<AppUserOauth>()
                         .eq(AppUserOauth::getUserId, userId)

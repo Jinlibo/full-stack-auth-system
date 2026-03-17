@@ -16,9 +16,15 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -142,7 +148,20 @@ public class AuthServiceImpl implements AuthService {
                 TimeUnit.MILLISECONDS             // TTL 单位
         );
 
-        // 第六步：组装用户信息 DTO 和登录响应
+        // 第六步：将认证信息写入 HTTP session，实现 SSO
+        // 这样同一浏览器发起 OAuth2 授权时，Spring Authorization Server 能在 session 中
+        // 找到已认证用户，直接跳过 OAuthLogin 密码输入页（复用管理台登录状态）
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+        SecurityContextRepository sessionRepo = new HttpSessionSecurityContextRepository();
+        ServletRequestAttributes attrs =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs != null) {
+            sessionRepo.saveContext(context, attrs.getRequest(), attrs.getResponse());
+        }
+
+        // 第七步：组装用户信息 DTO 和登录响应
         UserInfo userInfo = buildUserInfo(user, loginUser);
         return LoginResponse.builder()
                 .accessToken(accessToken)
@@ -317,6 +336,21 @@ public class AuthServiceImpl implements AuthService {
             // 配合黑名单，双重保证 Token 失效
             redisTemplate.delete("token:access:" + userId);
         }
+
+        // 第三步：使 HTTP session 失效，清除 SSO 状态
+        // 管理台登录时通过 HttpSessionSecurityContextRepository 写入了 session，
+        // 退出时必须同步清除，否则 Spring Authorization Server 仍能从 session 中
+        // 找到已认证用户，导致 OAuth 登录无需重新输密码（SSO 不正确地持续有效）
+        ServletRequestAttributes attrs =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs != null) {
+            jakarta.servlet.http.HttpSession session = attrs.getRequest().getSession(false);
+            if (session != null) {
+                session.invalidate();
+            }
+        }
+        // 清除当前线程的 SecurityContext，防止后续代码误用已注销的认证信息
+        SecurityContextHolder.clearContext();
     }
 
     /**
