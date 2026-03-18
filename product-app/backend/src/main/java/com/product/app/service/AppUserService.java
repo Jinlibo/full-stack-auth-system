@@ -1,6 +1,7 @@
 package com.product.app.service;
 
 import com.product.app.common.PageQuery;
+import com.product.app.dto.PasswordRequest;
 import com.product.app.dto.UserInfo;
 import com.product.app.dto.UserUpdateRequest;
 import com.product.app.entity.AppUser;
@@ -15,4 +16,6 @@ public interface AppUserService extends IService<AppUser> {
     void updateProfile(Long userId, UserUpdateRequest request);
 
     void unbindOAuth(Long userId, String provider);
+
+    void setPassword(Long userId, PasswordRequest request);
 }

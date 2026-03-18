@@ -16,6 +16,7 @@ public class UserInfo {
     private List<String> roles;
     private List<String> permissions;
     private List<OAuthBinding> oauthBindings;
+    private Boolean hasPassword;
 
     @Data
     public static class OAuthBinding {

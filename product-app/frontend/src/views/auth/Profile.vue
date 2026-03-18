@@ -109,8 +109,51 @@
         </div>
       </el-col>
 
-      <!-- 右列：第三方账号绑定 -->
+      <!-- 右列：第三方账号绑定 + 密码管理 -->
       <el-col :md="12" :xs="24">
+        <!-- 密码管理卡片 -->
+        <div class="content-card">
+          <div class="card-header">
+            <div class="card-icon" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+              <el-icon :size="16">
+                <Lock/>
+              </el-icon>
+            </div>
+            <div>
+              <div class="card-title">密码安全</div>
+              <div class="card-desc">{{ userStore.userInfo?.hasPassword ? '修改登录密码' : '设置登录密码，以便解绑第三方账号' }}</div>
+            </div>
+          </div>
+
+          <el-form :model="pwdForm" class="profile-form" label-position="top">
+            <!-- 已有密码时才显示旧密码字段 -->
+            <el-form-item v-if="userStore.userInfo?.hasPassword" label="旧密码">
+              <el-input v-model="pwdForm.oldPassword" placeholder="请输入旧密码" show-password type="password"/>
+            </el-form-item>
+
+            <el-form-item label="新密码">
+              <el-input v-model="pwdForm.newPassword" placeholder="请输入新密码（至少6位）" show-password type="password"/>
+            </el-form-item>
+
+            <el-form-item label="确认新密码">
+              <el-input v-model="pwdForm.confirmPassword" placeholder="请再次输入新密码" show-password type="password"/>
+            </el-form-item>
+
+            <el-form-item>
+              <el-button
+                  :loading="savingPwd"
+                  class="save-btn"
+                  style="background: linear-gradient(135deg, #f093fb, #f5576c); border: none;"
+                  type="primary"
+                  @click="handleSetPassword"
+              >
+                {{ savingPwd ? '保存中...' : (userStore.userInfo?.hasPassword ? '修改密码' : '设置密码') }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <!-- 第三方账号绑定卡片 -->
         <div class="content-card">
           <div class="card-header">
             <div class="card-icon" style="background: linear-gradient(135deg, #667eea, #764ba2);">
@@ -214,7 +257,7 @@
 import {ref, reactive, computed, onMounted} from 'vue'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {useUserStore} from '../../store/user'
-import {updateProfile, unbindOAuth} from '../../api/user'
+import {updateProfile, unbindOAuth, setPassword} from '../../api/user'
 import {getOAuthUrl} from '../../api/auth'
 
 const userStore = useUserStore()
@@ -227,6 +270,12 @@ const updating = ref(false)
 
 /** 正在解绑的提供商名称（'' 表示无解绑操作进行中） */
 const unbinding = ref('')
+
+/** 密码表单 */
+const pwdForm = reactive({oldPassword: '', newPassword: '', confirmPassword: ''})
+
+/** 密码保存中加载状态 */
+const savingPwd = ref(false)
 
 /**
  * 当前用户已绑定的 OAuth 账号列表（从 userInfo 派生）
@@ -262,6 +311,41 @@ const handleSave = async () => {
     // 错误已由 request.js 拦截器统一处理
   } finally {
     updating.value = false
+  }
+}
+
+/**
+ * 设置或修改密码
+ */
+const handleSetPassword = async () => {
+  if (!pwdForm.newPassword) {
+    ElMessage.warning('请输入新密码')
+    return
+  }
+  if (pwdForm.newPassword.length < 6) {
+    ElMessage.warning('密码不能少于6位')
+    return
+  }
+  if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  const isFirstTime = !userStore.userInfo?.hasPassword
+  savingPwd.value = true
+  try {
+    await setPassword({
+      oldPassword: pwdForm.oldPassword || undefined,
+      newPassword: pwdForm.newPassword,
+    })
+    await userStore.fetchUserInfo()
+    ElMessage.success(isFirstTime ? '密码设置成功' : '密码修改成功')
+    pwdForm.oldPassword = ''
+    pwdForm.newPassword = ''
+    pwdForm.confirmPassword = ''
+  } catch (e) {
+    // 错误已由 request.js 拦截器统一处理
+  } finally {
+    savingPwd.value = false
   }
 }
 

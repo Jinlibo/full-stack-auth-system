@@ -5,6 +5,7 @@ import cn.hutool.http.HttpResponse;
 import com.product.app.common.BusinessException;
 import com.product.app.common.PageQuery;
 import com.product.app.config.OAuth2Properties;
+import com.product.app.dto.PasswordRequest;
 import com.product.app.dto.UserInfo;
 import com.product.app.dto.UserUpdateRequest;
 import com.product.app.entity.AppUser;
@@ -18,6 +19,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -31,6 +33,7 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
     private final AppUserMapper userMapper;
     private final AppUserOauthMapper oauthMapper;
     private final OAuth2Properties oauth2Props;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserInfo getUserInfo(Long userId) {
@@ -47,6 +50,9 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         info.setStatus(user.getStatus());
         info.setRoles(userMapper.selectRoleKeysByUserId(userId));
         info.setPermissions(userMapper.selectPermissionKeysByUserId(userId));
+
+        // 是否设置了密码
+        info.setHasPassword(StringUtils.hasText(user.getPassword()));
 
         // OAuth绑定信息
         List<AppUserOauth> oauths = oauthMapper.selectList(
@@ -97,8 +103,7 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         if (record == null) throw new BusinessException(404, "未找到该绑定关系");
 
         // 检查是否满足解绑条件
-        String password = user.getPassword();
-        boolean hasPassword = password != null && !password.isEmpty();
+        boolean hasPassword = StringUtils.hasText(user.getPassword());
         long oauthCount = oauthMapper.selectCount(
                 new LambdaQueryWrapper<AppUserOauth>().eq(AppUserOauth::getUserId, userId));
         if (!hasPassword && oauthCount == 1) {
@@ -124,5 +129,25 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         } catch (Exception e) {
             log.warn("撤销 OAuth 同意时发生异常，不影响解绑主流程: {}", e.getMessage());
         }
+    }
+
+    @Override
+    public void setPassword(Long userId, PasswordRequest request) {
+        AppUser user = userMapper.selectById(userId);
+        if (user == null) throw new BusinessException(404, "用户不存在");
+
+        boolean hasPassword = StringUtils.hasText(user.getPassword());
+        if (hasPassword) {
+            // 已有密码：需要验证旧密码
+            if (!StringUtils.hasText(request.getOldPassword())) {
+                throw new BusinessException(400, "请输入旧密码");
+            }
+            if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+                throw new BusinessException(400, "旧密码错误");
+            }
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userMapper.updateById(user);
     }
 }

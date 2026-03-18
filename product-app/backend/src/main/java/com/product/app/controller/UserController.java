@@ -3,6 +3,7 @@ package com.product.app.controller;
 import com.product.app.common.PageQuery;
 import com.product.app.common.R;
 import com.product.app.dto.OAuth2CallbackRequest;
+import com.product.app.dto.PasswordRequest;
 import com.product.app.dto.UserInfo;
 import com.product.app.dto.UserUpdateRequest;
 import com.product.app.security.LoginUser;
@@ -45,6 +46,18 @@ public class UserController {
     @PreAuthorize("hasAuthority('user:list')")
     public R<UserInfo> getUser(@PathVariable Long id) {
         return R.ok(userService.getUserInfo(id));
+    }
+
+    /**
+     * 设置或修改密码
+     * 首次设置（无密码用户）：无需旧密码
+     * 修改密码（已有密码）：需验证旧密码
+     */
+    @PutMapping("/me/password")
+    public R<Void> setPassword(@AuthenticationPrincipal LoginUser loginUser,
+                               @Valid @RequestBody PasswordRequest request) {
+        userService.setPassword(loginUser.getUser().getId(), request);
+        return R.ok();
     }
 
     /**
