@@ -25,6 +25,9 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+/**
+ * 用户服务实现类，提供用户信息查询、资料修改、密码设置及 OAuth2 解绑等业务逻辑。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,6 +38,12 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
     private final OAuth2Properties oauth2Props;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * 根据用户 ID 查询用户详细信息，包含角色列表、权限列表、是否设置密码及 OAuth2 绑定情况。
+     *
+     * @param userId 用户 ID
+     * @return 用户信息 DTO
+     */
     @Override
     public UserInfo getUserInfo(Long userId) {
         AppUser user = userMapper.selectById(userId);
@@ -51,10 +60,10 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         info.setRoles(userMapper.selectRoleKeysByUserId(userId));
         info.setPermissions(userMapper.selectPermissionKeysByUserId(userId));
 
-        // 是否设置了密码
+        // 判断用户是否已设置密码
         info.setHasPassword(StringUtils.hasText(user.getPassword()));
 
-        // OAuth绑定信息
+        // 查询并组装 OAuth2 绑定信息
         List<AppUserOauth> oauths = oauthMapper.selectList(
                 new LambdaQueryWrapper<AppUserOauth>().eq(AppUserOauth::getUserId, userId));
         info.setOauthBindings(oauths.stream().map(o -> {
@@ -67,6 +76,13 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         return info;
     }
 
+    /**
+     * 分页查询用户列表，支持按用户名或昵称关键词模糊搜索，按创建时间倒序排列。
+     * 每条用户记录会进一步查询完整信息（含角色、权限等）。
+     *
+     * @param query 分页查询参数
+     * @return 用户信息分页数据
+     */
     @Override
     public IPage<UserInfo> pageUsers(PageQuery query) {
         Page<AppUser> page = new Page<>(query.getPageNum(), query.getPageSize());
@@ -79,6 +95,13 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         return userMapper.selectPage(page, wrapper).convert(u -> getUserInfo(u.getId()));
     }
 
+    /**
+     * 修改指定用户的个人资料，仅更新请求中非 null 的字段。
+     * 用户不存在时抛出 404 业务异常。
+     *
+     * @param userId  用户 ID
+     * @param request 用户资料更新请求
+     */
     @Override
     public void updateProfile(Long userId, UserUpdateRequest request) {
         AppUser user = userMapper.selectById(userId);
@@ -90,19 +113,26 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         userMapper.updateById(user);
     }
 
+    /**
+     * 解绑指定用户的 OAuth2 账号，同时向授权服务器发起撤销授权同意请求。
+     * 若用户未设置密码且该 OAuth2 账号是最后一个登录方式，则禁止解绑。
+     *
+     * @param userId   用户 ID
+     * @param provider OAuth2 提供商标识
+     */
     @Override
     public void unbindOAuth(Long userId, String provider) {
         AppUser user = userMapper.selectById(userId);
         if (user == null) throw new BusinessException(404, "用户不存在");
 
-        // 查出绑定记录（需获取 oauthUsername 用于撤销同意）
+        // 查询绑定记录，需获取 oauthUsername 以便撤销授权同意
         AppUserOauth record = oauthMapper.selectOne(
                 new LambdaQueryWrapper<AppUserOauth>()
                         .eq(AppUserOauth::getUserId, userId)
                         .eq(AppUserOauth::getOauthProvider, provider));
         if (record == null) throw new BusinessException(404, "未找到该绑定关系");
 
-        // 检查是否满足解绑条件
+        // 校验解绑安全条件：未设置密码且仅剩一个 OAuth2 登录方式时禁止解绑
         boolean hasPassword = StringUtils.hasText(user.getPassword());
         long oauthCount = oauthMapper.selectCount(
                 new LambdaQueryWrapper<AppUserOauth>().eq(AppUserOauth::getUserId, userId));
@@ -112,7 +142,7 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
 
         oauthMapper.deleteById(record.getId());
 
-        // 撤销 auth-platform 上的授权同意，使下次绑定时重新展示授权页
+        // 撤销授权服务器上的授权同意，使下次重新绑定时重新展示授权确认页
         try {
             String revokeUrl = oauth2Props.getAuthServer().getBaseUrl() + "/api/oauth2/revoke-consent";
             String body = String.format("{\"clientId\":\"%s\",\"clientSecret\":\"%s\",\"username\":\"%s\"}",
@@ -131,6 +161,13 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
         }
     }
 
+    /**
+     * 设置或修改用户密码。
+     * 首次设置时无需旧密码；已有密码的用户修改时必须先验证旧密码。
+     *
+     * @param userId  用户 ID
+     * @param request 密码设置请求，包含旧密码（可选）和新密码
+     */
     @Override
     public void setPassword(Long userId, PasswordRequest request) {
         AppUser user = userMapper.selectById(userId);
@@ -138,7 +175,7 @@ public class AppUserServiceImpl extends ServiceImpl<AppUserMapper, AppUser> impl
 
         boolean hasPassword = StringUtils.hasText(user.getPassword());
         if (hasPassword) {
-            // 已有密码：需要验证旧密码
+            // 已有密码时需要验证旧密码
             if (!StringUtils.hasText(request.getOldPassword())) {
                 throw new BusinessException(400, "请输入旧密码");
             }

@@ -19,24 +19,34 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * Initializes required baseline data on startup.
- * <p>
- * Specifically:
- * 1. Ensures the admin user exists with the correct password hash.
- * The SQL schema ships with a placeholder BCrypt hash; this component
- * replaces it with a freshly encoded hash so admin/admin123 always works.
- * 2. Ensures the product-app OAuth2 client is registered in oauth2_registered_client
- * with a valid BCrypt-encoded secret (client_secret_basic/post authentication
- * requires the stored secret to be BCrypt-encoded by Spring Authorization Server).
+ * 应用启动时的基础数据初始化器
+ *
+ * <p>实现 {@link ApplicationRunner}，在 Spring Boot 完成启动后自动执行，负责：
+ * <ol>
+ *   <li>确保管理员用户存在且密码哈希正确。SQL 初始化脚本中携带占位哈希，
+ *       本组件会在启动时重新编码，确保 admin/admin123 始终可用。</li>
+ *   <li>确保 product-app OAuth2 客户端已在 oauth2_registered_client 表中注册，
+ *       且客户端密钥（client_secret）为有效的 BCrypt 编码格式
+ *       （Spring Authorization Server 的 client_secret_basic/post 认证要求存储的密钥为 BCrypt 编码）。</li>
+ * </ol>
+ *
+ * @author auth-platform
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
+    /** 管理员默认用户名 */
     private static final String ADMIN_USERNAME = "admin";
+
+    /** 管理员默认密码（明文，BCrypt 编码后存储） */
     private static final String ADMIN_PASSWORD = "admin123";
+
+    /** 示例产品应用的 OAuth2 Client ID */
     private static final String PRODUCT_APP_CLIENT_ID = "product-app";
+
+    /** 示例产品应用的 OAuth2 Client Secret（明文，BCrypt 编码后存储） */
     private static final String PRODUCT_APP_CLIENT_SECRET = "admin123";
 
     private final OAuth2RegisteredClientMapper oauth2ClientMapper;
@@ -47,6 +57,14 @@ public class DataInitializer implements ApplicationRunner {
     @Value("${app.product-app-redirect-uri:http://localhost:5174/oauth/callback}")
     private String productAppRedirectUri;
 
+    /**
+     * 应用启动后执行初始化逻辑
+     *
+     * <p>按顺序执行管理员用户初始化和 OAuth2 客户端初始化，
+     * 整个方法在同一事务中执行，任意步骤失败均回滚。
+     *
+     * @param args 启动参数（不使用）
+     */
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
@@ -54,6 +72,12 @@ public class DataInitializer implements ApplicationRunner {
         initProductAppOAuthClient();
     }
 
+    /**
+     * 初始化管理员用户
+     *
+     * <p>若数据库中不存在 admin 用户，则创建默认管理员账号并分配超级管理员角色（id=1）。
+     * 若已存在则跳过，不做任何修改。
+     */
     private void initAdminUser() {
         SysUser admin = userMapper.selectOne(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, ADMIN_USERNAME));
@@ -67,17 +91,27 @@ public class DataInitializer implements ApplicationRunner {
             admin.setStatus(1);
             userMapper.insert(admin);
 
-            // Assign SUPER_ADMIN role (id=1) — new user has no roles yet, no need to check
+            // 分配超级管理员角色（id=1）——新用户尚无角色，无需检查重复
             SysUserRole ur = new SysUserRole();
             ur.setUserId(admin.getId());
             ur.setRoleId(1L);
             userRoleMapper.insert(ur);
-            log.info("DataInitializer: created admin user with SUPER_ADMIN role");
+            log.info("DataInitializer: 已创建管理员用户并分配超级管理员角色");
         }
     }
 
+    /**
+     * 初始化示例产品应用的 OAuth2 客户端
+     *
+     * <p>处理逻辑：
+     * <ul>
+     *   <li>若客户端不存在：插入新的客户端注册记录（含 BCrypt 编码的 secret）</li>
+     *   <li>若客户端存在但 secret 哈希不匹配（如 SQL 脚本写入了错误哈希）：更新为正确的 BCrypt 编码</li>
+     *   <li>若客户端存在且 secret 正确：跳过，不做任何操作</li>
+     * </ul>
+     */
     private void initProductAppOAuthClient() {
-        // Single query: null means client does not exist yet
+        // 单次查询：返回 null 表示客户端尚未注册
         String storedSecret = oauth2ClientMapper.selectSecretByClientId(PRODUCT_APP_CLIENT_ID);
 
         if (storedSecret == null) {
@@ -94,12 +128,12 @@ public class DataInitializer implements ApplicationRunner {
                     OAuth2ClientDefaults.CLIENT_SETTINGS,
                     OAuth2ClientDefaults.TOKEN_SETTINGS
             );
-            log.info("DataInitializer: registered product-app OAuth2 client");
+            log.info("DataInitializer: 已注册 product-app OAuth2 客户端");
         } else if (!passwordEncoder.matches(PRODUCT_APP_CLIENT_SECRET, storedSecret)) {
-            // Ensure the stored secret is BCrypt-encoded (SQL may have wrong hash)
+            // 存储的 secret 不是有效的 BCrypt 编码（SQL 脚本可能写入了错误哈希），修复之
             String encodedSecret = passwordEncoder.encode(PRODUCT_APP_CLIENT_SECRET);
             oauth2ClientMapper.updateSecret(encodedSecret, PRODUCT_APP_CLIENT_ID);
-            log.info("DataInitializer: fixed product-app client_secret hash");
+            log.info("DataInitializer: 已修复 product-app 客户端密钥哈希");
         }
     }
 }

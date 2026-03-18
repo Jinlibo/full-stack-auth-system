@@ -14,21 +14,31 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Ensures the admin user exists with the correct password hash on startup.
- * The SQL init script ships with a placeholder BCrypt hash; this component
- * replaces it so admin/admin123 always works.
+ * 应用启动时的数据初始化器，确保管理员用户（admin）存在且密码哈希正确。
+ * SQL 初始化脚本中使用了占位符哈希，此组件在启动时将其替换为正确的 BCrypt 哈希，
+ * 保证 admin/admin123 账号始终可用。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class DataInitializer implements ApplicationRunner {
 
+    /** 管理员用户名 */
     private static final String ADMIN_USERNAME = "admin";
+
+    /** 管理员默认密码 */
     private static final String ADMIN_PASSWORD = "admin123";
+
     private final AppUserMapper userMapper;
     private final AppUserRoleMapper userRoleMapper;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * 应用启动后执行，检查并初始化管理员账号及其角色绑定。
+     * 若管理员不存在则创建；若密码哈希不匹配则重新写入正确哈希。
+     *
+     * @param args Spring Boot 应用启动参数
+     */
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
@@ -43,7 +53,7 @@ public class DataInitializer implements ApplicationRunner {
             admin.setNickname("管理员");
             admin.setStatus(1);
             userMapper.insert(admin);
-            log.info("DataInitializer: created product-app admin user");
+            log.info("DataInitializer: 已创建 product-app 管理员账号");
 
             Long count = userRoleMapper.selectCount(
                     new LambdaQueryWrapper<AppUserRole>()
@@ -59,7 +69,7 @@ public class DataInitializer implements ApplicationRunner {
                 || !passwordEncoder.matches(ADMIN_PASSWORD, admin.getPassword())) {
             admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
             userMapper.updateById(admin);
-            log.info("DataInitializer: fixed product-app admin password hash");
+            log.info("DataInitializer: 已修复 product-app 管理员密码哈希");
         }
     }
 }

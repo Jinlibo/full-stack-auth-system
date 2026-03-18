@@ -113,6 +113,17 @@
             />
           </el-form-item>
 
+          <!-- 手机号（可选） -->
+          <el-form-item prop="phone" label="手机号（可选）">
+            <el-input
+                v-model="form.phone"
+                clearable
+                placeholder="请输入手机号"
+                prefix-icon="Phone"
+                size="large"
+            />
+          </el-form-item>
+
           <!-- 提交按钮 -->
           <el-form-item>
             <el-button
@@ -165,6 +176,7 @@ const form = reactive({
   confirmPassword: '',
   email: '',
   nickname: '',
+  phone: '',
 })
 
 /** 确认密码校验器 */
@@ -211,6 +223,8 @@ const handleRegister = async () => {
     const {confirmPassword, ...payload} = form
     // 昵称为空时不传字段
     if (!payload.nickname) delete payload.nickname
+    // 手机号为空时不传字段
+    if (!payload.phone) delete payload.phone
     await register(payload)
     ElMessage.success('注册成功，请登录')
     router.push('/login')
