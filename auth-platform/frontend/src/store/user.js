@@ -2,14 +2,14 @@
  * 用户状态管理仓库（Pinia Store）
  *
  * 职责：
- *  1. 持久化存储 JWT Token（存入 localStorage，页面刷新后恢复）
+ *  1. 持久化存储 JWT Token（存入 sessionStorage，页面刷新后恢复）
  *  2. 缓存当前登录用户信息（userInfo），避免每次页面跳转都重新请求接口
  *  3. 提供 login / logout / fetchUserInfo / hasPermission 等操作方法
  *  4. 供路由守卫、请求拦截器、各页面组件使用
  *
  * 数据流：
  *  用户登录 → login() → 保存 token + userInfo → 后续请求自动携带 token
- *  页面刷新 → 从 localStorage 恢复 token → 路由守卫调用 fetchUserInfo() 重建 userInfo
+ *  页面刷新 → 从 sessionStorage 恢复 token → 路由守卫调用 fetchUserInfo() 重建 userInfo
  *  token 过期 → 请求拦截器检测到 401 → 调用 logout() 清除本地数据 → 跳转登录页
  */
 
@@ -29,10 +29,10 @@ export const useUserStore = defineStore('user', () => {
 
     /**
      * JWT Access Token
-     * 初始值从 localStorage 中恢复（key: 'auth_token'），实现页面刷新后保持登录状态。
+     * 初始值从 sessionStorage 中恢复（key: 'auth_token'），实现页面刷新后保持登录状态。
      * token 为空字符串时表示未登录。
      */
-    const token = ref(localStorage.getItem('auth_token') || '')
+    const token = ref(sessionStorage.getItem('auth_token') || '')
 
     /**
      * 当前登录用户信息对象
@@ -56,7 +56,7 @@ export const useUserStore = defineStore('user', () => {
     /**
      * 用户登录
      *
-     * 调用登录接口，将返回的 Access Token 和 Refresh Token 存入 localStorage，
+     * 调用登录接口，将返回的 Access Token 和 Refresh Token 存入 sessionStorage，
      * 并将用户信息缓存到 store 中。
      *
      * Token 存储策略：
@@ -76,8 +76,8 @@ export const useUserStore = defineStore('user', () => {
         // 将完整用户信息存入 store（避免登录后还要单独请求 /users/me）
         userInfo.value = res.data.userInfo
 
-        // 持久化 Access Token 到 localStorage（页面刷新后可恢复登录状态）
-        localStorage.setItem('auth_token', token.value)
+        // 持久化 Access Token 到 sessionStorage（页面刷新后可恢复登录状态）
+        sessionStorage.setItem('auth_token', token.value)
 
         return res
     }
@@ -86,7 +86,7 @@ export const useUserStore = defineStore('user', () => {
      * 获取当前登录用户信息（懒加载）
      *
      * 使用场景：
-     *  1. 页面刷新后，token 从 localStorage 恢复，但 userInfo 为 null
+     *  1. 页面刷新后，token 从 sessionStorage 恢复，但 userInfo 为 null
      *     此时路由守卫会调用此方法重新获取用户信息
      *  2. 保存个人信息后，调用此方法刷新 store 中的缓存数据
      *
@@ -103,7 +103,7 @@ export const useUserStore = defineStore('user', () => {
      * 退出登录（客户端清理）
      *
      * 清除 Pinia store 中的 token 和 userInfo，
-     * 同时删除 localStorage 中的持久化数据。
+     * 同时删除 sessionStorage 中的持久化数据。
      *
      * 注意：此方法仅清理客户端状态，实际向后端发送注销请求的调用在 Layout.vue 的
      * handleLogout() 中，后端会将 token 加入黑名单。
@@ -114,8 +114,8 @@ export const useUserStore = defineStore('user', () => {
         // 清除内存中的状态
         token.value = ''
         userInfo.value = null
-        // 清除 localStorage 中的持久化数据
-        localStorage.removeItem('auth_token')
+        // 清除 sessionStorage 中的持久化数据
+        sessionStorage.removeItem('auth_token')
     }
 
     /**

@@ -40,12 +40,13 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 import javax.sql.DataSource;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import java.security.KeyFactory;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.List;
-import java.util.UUID;
 
 @Configuration
 public class AuthorizationServerConfig {
@@ -59,15 +60,8 @@ public class AuthorizationServerConfig {
     @Autowired
     private SysProductMapper productMapper;
 
-    private static KeyPair generateRsaKey() {
-        try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            return keyPairGenerator.generateKeyPair();
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
+    @Autowired
+    private JwkProperties jwkProperties;
 
     @Bean
     public RegisteredClientRepository registeredClientRepository() {
@@ -137,15 +131,23 @@ public class AuthorizationServerConfig {
 
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
-        KeyPair keyPair = generateRsaKey();
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
-        RSAKey rsaKey = new RSAKey.Builder(publicKey)
-                .privateKey(privateKey)
-                .keyID(UUID.randomUUID().toString())
-                .build();
-        JWKSet jwkSet = new JWKSet(rsaKey);
-        return new ImmutableJWKSet<>(jwkSet);
+        try {
+            RSAPublicKey publicKey = (RSAPublicKey) KeyFactory.getInstance("RSA")
+                    .generatePublic(new X509EncodedKeySpec(decodePem(jwkProperties.getPublicKey())));
+            RSAPrivateKey privateKey = (RSAPrivateKey) KeyFactory.getInstance("RSA")
+                    .generatePrivate(new PKCS8EncodedKeySpec(decodePem(jwkProperties.getPrivateKey())));
+            RSAKey rsaKey = new RSAKey.Builder(publicKey)
+                    .privateKey(privateKey)
+                    .keyID(jwkProperties.getKeyId())
+                    .build();
+            return new ImmutableJWKSet<>(new JWKSet(rsaKey));
+        } catch (Exception e) {
+            throw new IllegalStateException("无法加载 JWK RSA 密钥，请检查 app.jwk 配置", e);
+        }
+    }
+
+    private static byte[] decodePem(String pem) {
+        return Base64.getDecoder().decode(pem.replaceAll("-----.*-----", "").replaceAll("\\s", ""));
     }
 
     @Bean

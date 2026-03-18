@@ -24,10 +24,15 @@ public class JwtUtil {
     }
 
     public String generateAccessToken(Long userId, String username, Map<String, Object> extra) {
-        return Jwts.builder().subject(String.valueOf(userId)).claim("username", username)
-                .claims(extra).issuer(issuer).issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000))
-                .signWith(getSigningKey()).compact();
+        return Jwts.builder()
+                .claims(extra)
+                .subject(String.valueOf(userId))
+                .claim("username", username)
+                .issuer(issuer)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey())
+                .compact();
     }
 
     public Claims parseToken(String token) {

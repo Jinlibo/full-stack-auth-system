@@ -73,11 +73,6 @@ public class DataInitializer implements ApplicationRunner {
             ur.setRoleId(1L);
             userRoleMapper.insert(ur);
             log.info("DataInitializer: created admin user with SUPER_ADMIN role");
-        } else if (!passwordEncoder.matches(ADMIN_PASSWORD, admin.getPassword())) {
-            // Hash in DB does not match admin123 — fix it
-            admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
-            userMapper.updateById(admin);
-            log.info("DataInitializer: fixed admin password hash");
         }
     }
 

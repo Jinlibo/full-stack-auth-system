@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
@@ -52,11 +55,15 @@ public class OAuth2ClientInfoController {
         return ResponseEntity.ok(info);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/revoke-consent")
     public ResponseEntity<Map<String, Object>> revokeConsent(@RequestBody Map<String, String> body) {
+        // 从安全上下文获取当前已认证用户，不信任请求体中的 username
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
+
         String clientId = body.get("clientId");
         String clientSecret = body.get("clientSecret");
-        String username = body.get("username");
 
         Map<String, Object> result = new HashMap<>();
 

@@ -117,7 +117,8 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/doc.html/**",
                                 "/webjars/**",
-                                "/api/oauth2/**"
+                                "/api/oauth2/client-info",
+                                "/api/oauth2/userinfo"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

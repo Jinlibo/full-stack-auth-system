@@ -49,6 +49,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
 
     private static final String OAUTH_PENDING_PREFIX = "oauth:pending:";
+    private static final String OAUTH_STATE_PREFIX = "oauth:state:";
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -87,6 +88,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginResponse oauthLogin(OAuth2CallbackRequest request) {
+        validateAndConsumeState(request.getState());
+
         // 1. 用授权码换取access_token
         String tokenUrl = oauth2Props.getAuthServer().getBaseUrl() + oauth2Props.getAuthServer().getTokenUri();
         log.info("OAuth2 token exchange: url={}, code={}", tokenUrl, request.getCode());
@@ -136,10 +139,8 @@ public class AuthServiceImpl implements AuthService {
                         .eq(AppUserOauth::getOauthUid, oauthUid));
 
         if (oauthBinding != null) {
-            // 已绑定，更新 token
+            // 已绑定，更新用户信息（不存储 OAuth token 到数据库）
             AppUser localUser = userMapper.selectById(oauthBinding.getUserId());
-            oauthBinding.setAccessToken(accessToken);
-            oauthBinding.setRefreshToken(refreshToken);
             oauthBinding.setOauthUsername(oauthUsername);
             oauthBinding.setOauthAvatar(avatar);
             oauthMapper.updateById(oauthBinding);
@@ -158,8 +159,6 @@ public class AuthServiceImpl implements AuthService {
             pendingData.put("nickname", nickname);
             pendingData.put("email", email);
             pendingData.put("avatar", avatar);
-            pendingData.put("accessToken", accessToken);
-            pendingData.put("refreshToken", refreshToken);
             pendingData.put("provider", provider);
             redisTemplate.opsForValue().set(
                     OAUTH_PENDING_PREFIX + pendingToken,
@@ -188,8 +187,6 @@ public class AuthServiceImpl implements AuthService {
         String nickname = data.getStr("nickname");
         String email = data.getStr("email");
         String avatar = data.getStr("avatar");
-        String accessToken = data.getStr("accessToken");
-        String refreshToken = data.getStr("refreshToken");
         String provider = data.getStr("provider");
 
         // 创建本地用户
@@ -213,15 +210,13 @@ public class AuthServiceImpl implements AuthService {
         ur.setRoleId(2L);
         userRoleMapper.insert(ur);
 
-        // 创建 OAuth 绑定
+        // 创建 OAuth 绑定（不存储 OAuth token 到数据库）
         AppUserOauth oauthBinding = new AppUserOauth();
         oauthBinding.setUserId(localUser.getId());
         oauthBinding.setOauthProvider(provider);
         oauthBinding.setOauthUid(oauthUid);
         oauthBinding.setOauthUsername(oauthUsername);
         oauthBinding.setOauthAvatar(avatar);
-        oauthBinding.setAccessToken(accessToken);
-        oauthBinding.setRefreshToken(refreshToken);
         oauthMapper.insert(oauthBinding);
 
         // 删除 Redis 临时 key
@@ -247,8 +242,6 @@ public class AuthServiceImpl implements AuthService {
         String oauthUid = data.getStr("oauthUid");
         String oauthUsername = data.getStr("oauthUsername");
         String avatar = data.getStr("avatar");
-        String accessToken = data.getStr("accessToken");
-        String refreshToken = data.getStr("refreshToken");
         String provider = data.getStr("provider");
 
         // 验证用户名密码
@@ -267,15 +260,13 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (existing == null) {
-            // 创建绑定关系
+            // 创建绑定关系（不存储 OAuth token 到数据库）
             AppUserOauth oauthBinding = new AppUserOauth();
             oauthBinding.setUserId(localUser.getId());
             oauthBinding.setOauthProvider(provider);
             oauthBinding.setOauthUid(oauthUid);
             oauthBinding.setOauthUsername(oauthUsername);
             oauthBinding.setOauthAvatar(avatar);
-            oauthBinding.setAccessToken(accessToken);
-            oauthBinding.setRefreshToken(refreshToken);
             oauthMapper.insert(oauthBinding);
         }
 
@@ -309,6 +300,11 @@ public class AuthServiceImpl implements AuthService {
             log.warn("Unable to check OAuth client status, proceeding: {}", e.getMessage());
         }
 
+        // 预检通过后再存入 Redis，避免预检失败时产生残留 state
+        if (state != null && !state.isBlank()) {
+            redisTemplate.opsForValue().set(OAUTH_STATE_PREFIX + state, "1", 10, TimeUnit.MINUTES);
+        }
+
         String authorizeUri = oauth2Props.getAuthServer().getAuthorizeUri();
         String redirectUri = URLEncoder.encode(oauth2Props.getClient().getRedirectUri(), StandardCharsets.UTF_8);
         String scope = URLEncoder.encode(oauth2Props.getClient().getScope().replace(",", " "), StandardCharsets.UTF_8);
@@ -329,6 +325,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserInfo bindOAuth(Long userId, OAuth2CallbackRequest request) {
+        validateAndConsumeState(request.getState());
+
         // 1. Exchange code for access_token
         String tokenUrl = oauth2Props.getAuthServer().getBaseUrl() + oauth2Props.getAuthServer().getTokenUri();
         HttpResponse tokenResp = HttpRequest.post(tokenUrl)
@@ -372,22 +370,18 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (existing != null) {
-            // Already bound to this user — just refresh tokens
-            existing.setAccessToken(accessToken);
-            existing.setRefreshToken(refreshToken);
+            // Already bound to this user — update user info（不存储 OAuth token 到数据库）
             existing.setOauthUsername(oauthUsername);
             existing.setOauthAvatar(avatar);
             oauthMapper.updateById(existing);
         } else {
-            // New binding
+            // New binding（不存储 OAuth token 到数据库）
             AppUserOauth binding = new AppUserOauth();
             binding.setUserId(userId);
             binding.setOauthProvider(provider);
             binding.setOauthUid(oauthUid);
             binding.setOauthUsername(oauthUsername);
             binding.setOauthAvatar(avatar);
-            binding.setAccessToken(accessToken);
-            binding.setRefreshToken(refreshToken);
             oauthMapper.insert(binding);
         }
 
@@ -396,6 +390,15 @@ public class AuthServiceImpl implements AuthService {
         var roles = userMapper.selectRoleKeysByUserId(userId);
         var perms = userMapper.selectPermissionKeysByUserId(userId);
         return buildUserInfo(user, roles, perms);
+    }
+
+    private void validateAndConsumeState(String state) {
+        if (state == null || state.isBlank()) {
+            throw new BusinessException(400, "缺少 state 参数，请重新发起 OAuth 登录");
+        }
+        if (!Boolean.TRUE.equals(redisTemplate.delete(OAUTH_STATE_PREFIX + state))) {
+            throw new BusinessException(400, "state 无效或已过期，请重新发起 OAuth 登录");
+        }
     }
 
     private LoginResponse buildLoginResponse(AppUser user, LoginUser loginUser) {

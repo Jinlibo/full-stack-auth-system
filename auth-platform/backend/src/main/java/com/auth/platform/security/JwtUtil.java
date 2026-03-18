@@ -92,19 +92,18 @@ public class JwtUtil {
      */
     public String generateAccessToken(Long userId, String username, Map<String, Object> extraClaims) {
         return Jwts.builder()
+                // 先设置 extraClaims（如 roles），后设置的核心 claims 不会被覆盖
+                .claims(extraClaims)
                 // sub claim：存储用户 ID（String 类型）
                 .subject(String.valueOf(userId))
                 // 自定义 claim：用户名（用于 filter 中按用户名加载权限）
                 .claim("username", username)
-                // 将 extraClaims（如 roles）合并进 Payload
-                // 注意：claims() 会覆盖已设置的同名 claim，所以 username 和 subject 应在 claims() 之前设置
-                .claims(extraClaims)
                 // iss claim：标识 Token 的签发方
                 .issuer(jwtProperties.getIssuer())
                 // iat claim：Token 签发时间
                 .issuedAt(new Date())
-                // exp claim：30 天兜底过期（Redis 是 session 唯一来源，JWT 过期仅作故障兜底）
-                .expiration(new Date(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000))
+                // exp claim：使用配置文件中的 expiration（默认 2 小时）
+                .expiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
                 // 使用 HMAC-SHA256 签名（signWith 自动识别密钥长度并选择算法）
                 .signWith(getSigningKey())
                 // 构建并序列化为 Base64URL 编码的 JWT 字符串

@@ -34,6 +34,48 @@ app:
   frontend-url: http://localhost:5173
   # product-app 的 OAuth2 回调地址（用于 DataInitializer 初始化内置客户端）
   product-app-redirect-uri: http://localhost:5174/oauth/callback
+  # JWK RSA 密钥对（生产环境通过环境变量 APP_JWK_PRIVATE_KEY / APP_JWK_PUBLIC_KEY 注入，勿将私钥提交到 git）
+  jwk:
+    key-id: auth-platform-rsa-key-001
+    private-key: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDA7hxLSCzGHKxd
+      mya967LTiu+nFYZm0D7JJ88BcqbG6EYqGxRpqHj/4WMRwhaz4va9o1prXNb8cnZL
+      7AofUHzLWAIipP5iJJtINTakG7WFMR0puRrLjEgdzvheyEsOOi9jgfWhGHnfLNFO
+      ++38ZfpmysNB1tDhjNM0JknicjeLGTjRx15f+S3xsw3i3nlESlGaijf1M0Lan09z
+      eQZdWDl/IDQfnBqItsCotgF+okYYDEK8pB4eryIZY/hyUwW0QxLJ+AaWdrjBOtaS
+      miZ6QeTfZCUMtLWkAbLGSyIr1AFpPomuf+0d0EaYUAzkBvvV8cWwZM6fZKtU/IZk
+      xUlQty/rAgMBAAECggEAFFC+b/rwpAfe6phs0vDfysDFjY2JsofZJKtpc9iT0Twi
+      L0rcsmeIHkGogfUzGMwceUmbOtTy2nBfHo2DX1rFWVAyIV3IX6NFKqxXzZ4RVi4e
+      yQbx2F80NNdXdfuXU68y0EKeD9GY+7Qnci67F6nRXUOanfM12ZpPnx0tCIhIawAU
+      32YQHyQQz3tSOQ11xFPpO7edGcFrG0nsS/NH7BbN3ZhT5Dxj8jn4vC6y+qeF4KDf
+      cN+eZCZIdszDLZKahJyPISFxM9WQ4LX5ifIV7uuwzrVD7hL5rH9xQX0d2XXSWSHQ
+      lOSz4ngKSIEBKrObhSCvNjYFUVLUXijkJ1j1FGjEAQKBgQD1f4CDta9PVpgLFcC/
+      rt5VBhqCPuUI+ytnCrUTFlXpak3DYg/B/YpQTWuKkAksl1td438xaCCQ/5456DDj
+      icfwY8C6c9284P1kyvUdx9gg8gpZ5VxDv91oJ8PEACaGCfuMS9F7KiSVDHFzLabP
+      O2rqyPHsBhMHYJ0nj5pwEXdyAQKBgQDJLu0183jfQNiLtX9n1PE3BRpSR+ztnTw0
+      dfy/xji8BB8jE9K/WeA+t2Jis5i++4/8td0YyrZPn37RQrtDP2Z7QYG8oyTiRPYZ
+      dQIvy8OCxYtBjUB9fBU9V2bb8Sb6igcEHFYzqUI9FORJ0YBUC+wA5PRnr9Ss26gt
+      q+mUrg+J6wKBgFDf/iBlvCkw58nPEr6TBx+PcTAzNBSvWe8KMfjlxMuuf4u8RGCt
+      ++DUgHcXWE5eVnUpuv81xHTAIQoGmgR7oWhqFFXYUdYlcJTB39o9uc+wrQRMcQbI
+      sFHdt7pcKlTB+SKQ36PpkD+h58X/5hIjCufp5vjQT3iAtYUQ49nDh0wBAoGBAKJy
+      J8vmenUacT/uH6ABi3w3vJcvyJnc2l4p3xoivnDiixnRydwEgFNj1CeKiQ29JviR
+      CKQaGreUO9xQm9CjAucHb/CXcxLZSDYqCsf5KjcPt3AI1Ef+x0+uoTl7MVQf26Zw
+      ExLH2tpjYipQ5eP3dGsMdGS8z2d8PgISzBrnqVhdAoGATStrJY68SC8GPyr63Zvi
+      Y0q0ZqxdWiYa64IwCI6V+j7o9mULhAp/VORzVILxM62u42MsknJXerOEPiCVsbX7
+      KuZTFlJo8+ZSASib9MNnsCYxRwM7F6v4poFhWo6N1PZgkvZCBLhyVlQMtpgcyuu7
+      U+7Yky5D84eTE9g2fNorDnI=
+      -----END PRIVATE KEY-----
+    public-key: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwO4cS0gsxhysXZsmveuy
+      04rvpxWGZtA+ySfPAXKmxuhGKhsUaah4/+FjEcIWs+L2vaNaa1zW/HJ2S+wKH1B8
+      y1gCIqT+YiSbSDU2pBu1hTEdKbkay4xIHc74XshLDjovY4H1oRh53yzRTvvt/GX6
+      ZsrDQdbQ4YzTNCZJ4nI3ixk40cdeX/kt8bMN4t55REpRmoo39TNC2p9Pc3kGXVg5
+      fyA0H5waiLbAqLYBfqJGGAxCvKQeHq8iGWP4clMFtEMSyfgGlna4wTrWkpomekHk
+      32QlDLS1pAGyxksiK9QBaT6Jrn/tHdBGmFAM5Ab71fHFsGTOn2SrVPyGZMVJULcv
+      6wIDAQAB
+      -----END PUBLIC KEY-----
 
 # JWT配置
 auth:
