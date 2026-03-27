@@ -92,29 +92,25 @@
         </el-table-column>
 
         <!-- 操作列：编辑 + 删除 -->
-        <el-table-column align="center" label="操作" width="155">
+        <el-table-column align="center" label="操作" width="170">
           <template #default="{ row }">
-            <!-- 编辑：加载权限树并回填当前角色已有的权限 -->
-            <el-button plain size="small" type="primary" @click="openDialog(row)">
-              <el-icon>
-                <Edit/>
-              </el-icon>
-              编辑
-            </el-button>
-            <el-popconfirm
-                title="确认删除该角色?"
-                width="180"
-                @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button plain size="small" type="danger">
-                  <el-icon>
-                    <Delete/>
-                  </el-icon>
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+              <!-- 编辑：加载权限树并回填当前角色已有的权限 -->
+              <el-button plain size="small" type="primary" @click="openDialog(row)" style="margin: 0;">
+                <el-icon><Edit/></el-icon>编辑
+              </el-button>
+              <el-popconfirm
+                  title="确认删除该角色?"
+                  width="180"
+                  @confirm="handleDelete(row.id)"
+              >
+                <template #reference>
+                  <el-button plain size="small" type="danger" style="margin: 0;">
+                    <el-icon><Delete/></el-icon>删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>

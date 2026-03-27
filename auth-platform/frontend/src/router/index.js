@@ -4,11 +4,13 @@
  * 本文件定义了整个前端应用的路由结构，并配置了全局导航守卫。
  *
  * 路由结构：
- *  /login           → 登录页（公开，不需要认证）
- *  /oauth-login     → OAuth2 登录授权页（公开，由 OAuth2 授权服务器跳转过来）
- *  /oauth-consent   → OAuth2 授权确认页（公开）
- *  /oauth-error     → OAuth2 错误页（公开）
- *  /                → 主布局（需要认证，使用 Layout.vue 作为外层框架）
+ *  /auth                → Auth 公开布局（使用 AuthLayout.vue 作为外层框架）
+ *    /login               → 登录页（公开，不需要认证）
+ *    /oauth-login         → OAuth2 登录授权页（公开，由 OAuth2 授权服务器跳转过来）
+ *    /oauth-consent       → OAuth2 授权确认页（公开）
+ *    /oauth-error         → OAuth2 错误页（公开）
+ *    /register            → 注册页（公开）
+ *  /                    → 主布局（需要认证，使用 Layout.vue 作为外层框架）
  *    /dashboard         → 仪表盘首页
  *    /system/user       → 用户管理
  *    /system/role       → 角色管理
@@ -39,40 +41,40 @@ const routes = [
     // ——— 公开页面（无需登录即可访问）———
 
     {
-        path: '/login',
-        name: 'Login',
-        // 懒加载登录页组件
-        component: () => import('../views/auth/Login.vue'),
-        // meta.public=true：导航守卫中标记为公开路由，直接放行
-        meta: {title: '登录', public: true},
-    },
-    {
-        path: '/register',
-        name: 'Register',
-        component: () => import('../views/auth/Register.vue'),
-        meta: {title: '注册', public: true},
-    },
-    {
-        path: '/oauth-login',
-        name: 'OAuthLogin',
-        // OAuth2 登录授权页：当第三方应用发起 OAuth2 授权时，Spring Authorization Server
-        // 会将用户重定向到此页面进行登录（类似于 GitHub 的 OAuth 登录页）
-        component: () => import('../views/oauth/OAuthLogin.vue'),
-        meta: {title: 'OAuth 登录授权', public: true},
-    },
-    {
-        path: '/oauth-consent',
-        name: 'OAuthConsent',
-        // OAuth2 授权确认页：用户登录后需要在此页面确认是否授权第三方应用访问其数据
-        component: () => import('../views/oauth/OAuthConsent.vue'),
-        meta: {title: '授权确认', public: true},
-    },
-    {
-        path: '/oauth-error',
-        name: 'OAuthError',
-        // OAuth2 流程发生错误时的展示页（如 redirect_uri 不匹配、客户端不存在等）
-        component: () => import('../views/oauth/OAuthError.vue'),
-        meta: {title: '授权失败', public: true},
+        path: '/auth',
+        component: () => import('../components/AuthLayout.vue'),
+        children: [
+            {
+                path: '/login',
+                name: 'Login',
+                component: () => import('../views/auth/Login.vue'),
+                meta: {title: '登录', public: true},
+            },
+            {
+                path: '/register',
+                name: 'Register',
+                component: () => import('../views/auth/Register.vue'),
+                meta: {title: '注册', public: true},
+            },
+            {
+                path: '/oauth-login',
+                name: 'OAuthLogin',
+                component: () => import('../views/oauth/OAuthLogin.vue'),
+                meta: {title: 'OAuth 登录授权', public: true},
+            },
+            {
+                path: '/oauth-consent',
+                name: 'OAuthConsent',
+                component: () => import('../views/oauth/OAuthConsent.vue'),
+                meta: {title: '授权确认', public: true},
+            },
+            {
+                path: '/oauth-error',
+                name: 'OAuthError',
+                component: () => import('../views/oauth/OAuthError.vue'),
+                meta: {title: '授权失败', public: true},
+            }
+        ]
     },
 
     // ——— 私有页面（需要登录认证，使用 Layout.vue 作为布局外壳）———

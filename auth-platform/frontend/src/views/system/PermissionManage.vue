@@ -58,8 +58,8 @@
       <el-table
           :data="permTree"
           :tree-props="{ children: 'children' }"
-          class="data-table"
-          default-expand-all
+          class="data-table tree-table-custom"
+          :indent="24"
           row-key="id"
           stripe
       >
@@ -111,30 +111,26 @@
         </el-table-column>
 
         <!-- 操作列 -->
-        <el-table-column align="center" label="操作" width="155">
+        <el-table-column align="center" label="操作" width="170">
           <template #default="{ row }">
-            <!-- 编辑按钮：将当前权限节点数据回填到表单 -->
-            <el-button plain size="small" type="primary" @click="openDialog(row)">
-              <el-icon>
-                <Edit/>
-              </el-icon>
-              编辑
-            </el-button>
-            <!-- 删除：后端会检查是否存在子权限，有子权限则拒绝删除 -->
-            <el-popconfirm
-                title="确认删除? 有子权限时无法删除"
-                width="200"
-                @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button plain size="small" type="danger">
-                  <el-icon>
-                    <Delete/>
-                  </el-icon>
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+              <!-- 编辑按钮：将当前权限节点数据回填到表单 -->
+              <el-button plain size="small" type="primary" @click="openDialog(row)" style="margin: 0;">
+                <el-icon><Edit/></el-icon>编辑
+              </el-button>
+              <!-- 删除：后端会检查是否存在子权限，有子权限则拒绝删除 -->
+              <el-popconfirm
+                  title="确认删除? 有子权限时无法删除"
+                  width="200"
+                  @confirm="handleDelete(row.id)"
+              >
+                <template #reference>
+                  <el-button plain size="small" type="danger" style="margin: 0;">
+                    <el-icon><Delete/></el-icon>删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -452,8 +448,9 @@ onMounted(load)
 
 /* 权限名称单元格：圆点 + 名称 */
 .perm-name-cell {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  vertical-align: middle;
   gap: 8px;
 }
 
@@ -534,10 +531,30 @@ onMounted(load)
   margin-right: 12px;
 }
 
-/* 对话框底部按钮：右对齐 */
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* 树形表格层级辨识度优化 */
+.tree-table-custom :deep(.el-table__row--level-1) {
+  background-color: #fafbfc !important;
+}
+
+.tree-table-custom :deep(.el-table__row--level-2) {
+  background-color: #f7f9fb !important;
+}
+
+.tree-table-custom :deep(.el-table__placeholder) {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.tree-table-custom :deep(.el-table__expand-icon) {
+  color: #409eff;
+  font-weight: bold;
+  vertical-align: middle;
+  margin-right: 6px;
 }
 </style>

@@ -1,0 +1,68 @@
+/* auth-platform/frontend/src/assets/styles/premium-theme.css */
+html body .premium-form :deep(.el-input__wrapper),
+html body .premium-form .el-input__wrapper {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+  border-radius: 12px !important;
+  padding: 0 16px !important;
+  transition: all 0.3s ease !important;
+}
+
+html body .premium-form :deep(.el-input__wrapper.is-focus),
+html body .premium-form .el-input__wrapper.is-focus {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2) !important;
+}
+
+html body .premium-form :deep(.el-input__inner),
+html body .premium-form .el-input__inner {
+  color: #fff !important;
+  height: 48px !important;
+}
+
+html body .premium-form :deep(.el-input__inner::placeholder),
+html body .premium-form .el-input__inner::placeholder {
+  color: #52525b !important;
+}
+
+.premium-form .el-form-item {
+  margin-bottom: 24px;
+}
+
+.glow-button {
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  border: none;
+  color: #ffffff !important;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow-button::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to right, #60a5fa, #a78bfa);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.glow-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
+}
+
+.glow-button:hover::before { opacity: 1; }
+.glow-button > span, .glow-button > .btn-icon { position: relative; z-index: 1; pointer-events: none;}

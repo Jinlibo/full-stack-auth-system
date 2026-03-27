@@ -1,0 +1,46 @@
+/* product-app/frontend/src/assets/styles/premium-theme.css */
+html body .premium-form :deep(.el-input__wrapper),
+html body .premium-form .el-input__wrapper {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important;
+  border-radius: 12px !important;
+  padding: 0 16px !important;
+  transition: all 0.3s !important;
+}
+
+html body .premium-form :deep(.el-input__wrapper.is-focus),
+html body .premium-form .el-input__wrapper.is-focus {
+  border-color: #0ea5e9 !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15) !important;
+}
+
+html body .premium-form :deep(.el-input__inner),
+html body .premium-form .el-input__inner {
+  color: #0f172a !important; 
+  height: 46px !important; 
+}
+
+.premium-form .el-form-item {
+  margin-bottom: 24px; 
+}
+
+.action-btn {
+  width: 100%; height: 50px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0ea5e9, #14b8a6);
+  border: none; color: #fff;
+  font-size: 15px; font-weight: 600;
+  transition: all 0.3s;
+  box-shadow: 0 8px 20px rgba(14, 165, 233, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.action-btn:hover { 
+  transform: translateY(-2px); 
+  box-shadow: 0 12px 25px rgba(14, 165, 233, 0.35); 
+  opacity: 0.95; 
+}

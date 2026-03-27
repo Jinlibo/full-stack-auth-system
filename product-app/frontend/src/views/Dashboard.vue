@@ -1,151 +1,123 @@
 <template>
-  <!-- ============================================================
-       仪表盘（Dashboard）
-       功能：展示欢迎横幅、当前用户详情、OAuth2 绑定状态、快捷入口
-       ============================================================ -->
-  <div class="dashboard">
-
-    <!-- ——— 欢迎横幅 ——— -->
-    <div class="welcome-banner">
-      <!-- 装饰光圈：CSS 绘制，增加视觉层次 -->
-      <div class="banner-orb banner-orb--1"></div>
-      <div class="banner-orb banner-orb--2"></div>
-
+  <div class="premium-light-dashboard">
+    <!-- Welcome Banner with beautiful fluid gradient -->
+    <div class="premium-banner">
+      <div class="banner-bg-elements">
+        <div class="fluid-shape shape-mint"></div>
+        <div class="fluid-shape shape-sky"></div>
+      </div>
       <div class="banner-content">
         <div class="welcome-text">
           <h2>你好，{{ userStore.userInfo?.nickname || userStore.userInfo?.username }} 👋</h2>
-          <p>欢迎回到产品应用平台，今天是 {{ today }}</p>
+          <p>欢迎回到应用服务平台，今天是 {{ today }}</p>
         </div>
-        <!-- 头像：显示昵称首字母 -->
-        <el-avatar :size="64" class="banner-avatar">
-          {{ (userStore.userInfo?.nickname || userStore.userInfo?.username)?.charAt(0)?.toUpperCase() }}
-        </el-avatar>
+        <div class="welcome-avatar-container">
+          <div class="avatar-ring"></div>
+          <el-avatar :size="68" class="premium-avatar">
+            {{ (userStore.userInfo?.nickname || userStore.userInfo?.username)?.charAt(0)?.toUpperCase() }}
+          </el-avatar>
+        </div>
       </div>
     </div>
 
-    <!-- ——— 信息行：用户资料 + OAuth2 绑定状态 ——— -->
-    <el-row :gutter="20" style="margin-bottom: 20px;">
-
-      <!-- 当前用户基础信息 -->
+    <!-- Info Cards Row -->
+    <el-row :gutter="24">
       <el-col :md="12" :xs="24">
-        <el-card class="info-card" shadow="never">
+        <el-card class="premium-info-card" shadow="never">
           <template #header>
-            <div class="card-header-row">
-              <el-icon>
-                <UserFilled/>
-              </el-icon>
-              账号信息
+            <div class="card-header-styled">
+              <div class="header-icon teal-bg"><el-icon><UserFilled/></el-icon></div>
+              <span>终端账号信息</span>
             </div>
           </template>
           <el-descriptions :border="false" :column="1" class="info-desc">
-            <el-descriptions-item label="用户名">
-              <el-tag>{{ userStore.userInfo?.username }}</el-tag>
+            <el-descriptions-item label="统一身份标识">
+              <el-tag effect="light" round class="premium-tag">{{ userStore.userInfo?.username }}</el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="昵称">
-              {{ userStore.userInfo?.nickname || '-' }}
+            <el-descriptions-item label="对外显示昵称">
+              <span class="info-text">{{ userStore.userInfo?.nickname || '-' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="邮箱">
-              {{ userStore.userInfo?.email || '-' }}
+            <el-descriptions-item label="企业联系邮箱">
+              <span class="info-text">{{ userStore.userInfo?.email || '-' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="手机">
-              {{ userStore.userInfo?.phone || '-' }}
+            <el-descriptions-item label="绑定手机号码">
+              <span class="info-text">{{ userStore.userInfo?.phone || '-' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="角色">
+            <el-descriptions-item label="分配权限角色">
               <el-space wrap>
                 <el-tag
                     v-for="r in userStore.userInfo?.roles"
                     :key="r"
                     effect="plain"
                     size="small"
-                    type="success"
+                    color="#f0fdf4"
+                    class="role-tag"
                 >{{ r }}
                 </el-tag>
-                <span
-                    v-if="!userStore.userInfo?.roles?.length"
-                    style="color: #c0c4cc;"
-                >暂无角色</span>
+                <span v-if="!userStore.userInfo?.roles?.length" class="empty-text">普通访问权限</span>
               </el-space>
             </el-descriptions-item>
           </el-descriptions>
         </el-card>
       </el-col>
 
-      <!-- OAuth2 绑定状态 -->
+      <!-- OAuth Bindings -->
       <el-col :md="12" :xs="24">
-        <el-card class="info-card" shadow="never">
+        <el-card class="premium-info-card" shadow="never">
           <template #header>
-            <div class="card-header-row">
-              <el-icon>
-                <Connection/>
-              </el-icon>
-              第三方账号绑定
+            <div class="card-header-styled">
+              <div class="header-icon sky-bg"><el-icon><Connection/></el-icon></div>
+              <span>鉴权中心身份解耦状态</span>
             </div>
           </template>
 
-          <!-- 已绑定的 OAuth 账号列表 -->
-          <div
-              v-if="userStore.userInfo?.oauthBindings?.length"
-              class="oauth-list"
-          >
-            <div
-                v-for="b in userStore.userInfo.oauthBindings"
-                :key="b.provider"
-                class="oauth-item"
-            >
-              <!-- 提供商名称标签 -->
+          <div v-if="userStore.userInfo?.oauthBindings?.length" class="oauth-list">
+            <div v-for="b in userStore.userInfo.oauthBindings" :key="b.provider" class="premium-oauth-item">
               <div class="oauth-item-left">
-                <div class="oauth-provider-dot"></div>
+                <div class="oauth-icon-box"><el-icon><Link/></el-icon></div>
                 <div>
-                  <div class="oauth-provider-name">{{ b.provider }}</div>
+                  <div class="oauth-provider-name">{{ b.provider }} 通行证协议</div>
                   <div class="oauth-username">{{ b.oauthUsername }}</div>
                 </div>
               </div>
-              <!-- 已绑定标记 -->
-              <el-tag effect="plain" size="small" type="success">已绑定</el-tag>
+              <div class="status-badge"><span class="dot"></span>已完成核心绑定</div>
             </div>
           </div>
 
-          <!-- 未绑定提示 -->
           <div v-else class="oauth-empty">
-            <el-icon :size="36" style="color: #dcdfe6;">
-              <Link/>
-            </el-icon>
-            <p>暂未绑定第三方账号</p>
-            <el-button
-                plain
-                size="small"
-                type="primary"
-                @click="$router.push('/profile')"
-            >前往绑定
-            </el-button>
+            <div class="empty-shield"><el-icon :size="40"><WarnTriangleFilled/></el-icon></div>
+            <h4>身份资产尚孤立</h4>
+            <p>请链接全栈 Auth Platform，启用零接触式单点通行流。</p>
+            <el-button class="action-btn-light" @click="$router.push('/profile')">马上建立互信</el-button>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- ——— 快捷入口 ——— -->
-    <el-card class="info-card" shadow="never">
+    <!-- Quick Links -->
+    <el-card class="premium-info-card mt-24" shadow="never">
       <template #header>
-        <div class="card-header-row">
-          <el-icon>
-            <Grid/>
-          </el-icon>
-          快捷入口
+        <div class="card-header-styled">
+          <div class="header-icon indigo-bg"><el-icon><Grid/></el-icon></div>
+          <span>全局服务快捷调度台</span>
         </div>
       </template>
-      <div class="quick-links">
+      <div class="quick-links-grid">
         <div
             v-for="link in quickLinks"
             :key="link.path"
-            class="quick-link-item"
+            class="premium-link-card"
             @click="$router.push(link.path)"
+            :style="{'--hover-color': link.color}"
         >
-          <div :style="`background: ${link.bg}`" class="quick-link-icon">
-            <el-icon :size="20">
-              <component :is="link.icon"/>
-            </el-icon>
+          <div class="link-icon" :style="{ background: link.bg, color: link.color }">
+            <el-icon :size="24"><component :is="link.icon"/></el-icon>
           </div>
-          <span>{{ link.label }}</span>
+          <div class="link-text-wrap">
+            <span class="link-label">{{ link.label }}</span>
+            <span class="link-desc">{{ link.desc }}</span>
+          </div>
+          <el-icon class="link-arrow"><ArrowRight/></el-icon>
         </div>
       </div>
     </el-card>
@@ -154,21 +126,10 @@
 </template>
 
 <script setup>
-/**
- * 仪表盘页面 - 脚本逻辑
- *
- * - 从 userStore 读取当前登录用户信息（已在路由守卫中加载）
- * - today：当前日期的中文格式字符串（如：2026年3月14日星期六）
- * - quickLinks：静态快捷入口配置，点击跳转对应路由
- */
 import {useUserStore} from '../store/user'
 
 const userStore = useUserStore()
 
-/**
- * 当前日期（中文本地化格式）
- * 格式：YYYY年M月D日 星期X
- */
 const today = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric',
   month: 'long',
@@ -176,65 +137,59 @@ const today = new Date().toLocaleDateString('zh-CN', {
   weekday: 'long',
 })
 
-/**
- * 快捷入口配置
- * - label：显示名称
- * - path：点击后跳转的路由路径
- * - icon：Element Plus 图标组件名
- * - bg：图标区半透明背景色
- */
 const quickLinks = [
-  {label: '用户管理', path: '/users', icon: 'User', bg: 'rgba(17,153,142,0.12)'},
-  {label: '个人中心', path: '/profile', icon: 'UserFilled', bg: 'rgba(56,239,125,0.12)'},
+  {label: '内部人员调配系统', desc: '检索系统内部资源并控制子用户全生命周期', path: '/users', icon: 'User', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.1)'},
+  {label: '个人专属安全中心', desc: '维护您的私密资料与认证参数设定', path: '/profile', icon: 'UserFilled', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)'},
 ]
 </script>
 
 <style scoped>
-/* ===================================================================
-   仪表盘主容器
-   =================================================================== */
-.dashboard {
+.premium-light-dashboard {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #0f172a;
 }
 
-/* ===================================================================
-   欢迎横幅：青绿色渐变，圆角卡片
-   =================================================================== */
-.welcome-banner {
+/* --- Banner --- */
+.premium-banner {
   position: relative;
-  background: linear-gradient(135deg, #0f7b6c 0%, #11998e 45%, #38ef7d 100%);
-  border-radius: 16px;
-  padding: 28px 32px;
-  margin-bottom: 24px;
+  background: linear-gradient(135deg, #0f7b6c 0%, #11998e 45%, #14b8a6 100%);
+  border-radius: 20px;
+  padding: 36px 40px;
+  margin-bottom: 28px;
   color: #fff;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(17, 153, 142, 0.3);
+  box-shadow: 0 20px 40px rgba(17, 153, 142, 0.25);
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
-/* 装饰性光圈：绝对定位，增加视觉层次 */
-.banner-orb {
+.banner-bg-elements {
   position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.fluid-shape {
+  position: absolute;
+  filter: blur(80px);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.8;
+  mix-blend-mode: color-dodge;
+  animation: floatBanner 20s infinite ease-in-out alternate;
 }
 
-.banner-orb--1 {
-  width: 200px;
-  height: 200px;
-  top: -60px;
-  right: 120px;
+.shape-mint { width: 350px; height: 350px; background: rgba(52, 211, 153, 0.6); top: -150px; right: -50px; }
+.shape-sky { width: 300px; height: 300px; background: rgba(56, 189, 248, 0.5); bottom: -100px; right: 250px; animation-delay: -5s;}
+
+@keyframes floatBanner {
+  0% { transform: translate(0,0) rotate(0deg); }
+  100% { transform: translate(-30px, 30px) scale(1.1) rotate(20deg); }
 }
 
-.banner-orb--2 {
-  width: 140px;
-  height: 140px;
-  bottom: -40px;
-  right: 40px;
-}
-
-/* 横幅内容：左右布局（文字 + 头像） */
 .banner-content {
   position: relative;
   z-index: 1;
@@ -244,165 +199,221 @@ const quickLinks = [
 }
 
 .welcome-text h2 {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .welcome-text p {
-  font-size: 14px;
-  opacity: 0.85;
+  font-size: 15px;
+  color: rgba(255,255,255,0.9);
   margin: 0;
 }
 
-/* 头像：半透明白色背景 */
-.banner-avatar {
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
-  font-weight: 700;
-  font-size: 26px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  flex-shrink: 0;
-}
-
-/* ===================================================================
-   信息卡片通用样式
-   =================================================================== */
-.info-card {
-  border-radius: 12px !important;
-  border: 1px solid #f0f0f0 !important;
-  margin-bottom: 20px;
-}
-
-/* 卡片头部：图标 + 标题 */
-.info-card :deep(.el-card__header) {
-  padding: 14px 20px;
-  border-bottom: 1px solid #f5f5f5;
-}
-
-.card-header-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-/* el-descriptions label 列 */
-.info-desc :deep(.el-descriptions__label) {
-  width: 70px;
-  color: #909399;
-  font-size: 13px;
-}
-
-.info-desc :deep(.el-descriptions__content) {
-  font-size: 13px;
-  color: #303133;
-}
-
-/* ===================================================================
-   OAuth2 绑定状态
-   =================================================================== */
-.oauth-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.oauth-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-}
-
-.oauth-item-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* 提供商颜色标记点：青绿色 */
-.oauth-provider-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #11998e;
-  flex-shrink: 0;
-}
-
-.oauth-provider-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.oauth-username {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 2px;
-}
-
-/* 未绑定空状态 */
-.oauth-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 24px 0 16px;
-  gap: 8px;
-}
-
-.oauth-empty p {
-  font-size: 13px;
-  color: #c0c4cc;
-  margin: 0 0 4px;
-}
-
-/* ===================================================================
-   快捷入口网格
-   =================================================================== */
-.quick-links {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-  padding: 4px 0;
-}
-
-.quick-link-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  cursor: pointer;
-  transition: all 0.18s;
-  font-size: 14px;
-  color: #303133;
-}
-
-.quick-link-item:hover {
-  background: #edfaf7;
-  border-color: #b2e5da;
-  color: #11998e;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.1);
-}
-
-/* 快捷入口图标容器 */
-.quick-link-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+.welcome-avatar-container {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #11998e;
+}
+
+.avatar-ring {
+  position: absolute;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.4);
+  background: transparent;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+
+.premium-avatar {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 700;
+  font-size: 28px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255,255,255,0.8);
+}
+
+/* --- Info Cards --- */
+.premium-info-card {
+  border-radius: 20px !important;
+  border: none !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0,0,0,0.02) !important;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  margin-bottom: 24px;
+}
+
+.premium-info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.06), 0 4px 6px rgba(0,0,0,0.03) !important;
+}
+
+.premium-info-card :deep(.el-card__header) {
+  padding: 24px 28px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  border-radius: 20px 20px 0 0;
+}
+
+.mt-24 { margin-top: 0; }
+
+.card-header-styled {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.header-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.teal-bg { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+.sky-bg { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+.indigo-bg { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+
+.info-desc :deep(.el-descriptions__label) { width: 100px; color: #64748b; font-weight: 600; font-size: 14px;}
+.info-text { font-weight: 600; color: #334155; font-size: 14px;}
+.premium-tag { font-weight: 600; font-size: 13px; }
+.role-tag { border: 1px solid #bbf7d0; padding: 4px 12px; font-weight: 700; color: #166534; border-radius: 8px;}
+.empty-text { color: #94a3b8; font-style: italic; font-size: 13px; }
+
+/* OAuth System */
+.oauth-list { display: flex; flex-direction: column; gap: 14px; }
+
+.premium-oauth-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  transition: all 0.2s ease;
+}
+
+.premium-oauth-item:hover {
+  background: #f0fdf4;
+  border-color: #bcf0da;
+  transform: translateX(4px);
+}
+
+.oauth-item-left { display: flex; align-items: center; gap: 14px; }
+
+.oauth-icon-box {
+  width: 40px; height: 40px;
+  background: #ffffff;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: #10b981;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  font-size: 18px;
+}
+
+.oauth-provider-name { font-size: 15px; font-weight: 700; color: #1e293b; }
+.oauth-username { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+.status-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #dcfce7; color: #166534;
+  padding: 6px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 700;
+}
+.status-badge .dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: blink 2s infinite; }
+
+@keyframes blink { 0%, 100% {opacity:1;} 50% {opacity:0.4;} }
+
+.oauth-empty {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 32px 0 20px; text-align: center;
+}
+
+.empty-shield {
+  width: 72px; height: 72px;
+  background: #fef2f2; border-radius: 50%;
+  color: #ef4444; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px; border: 4px solid #fff; box-shadow: 0 10px 25px rgba(239, 68, 68, 0.15);
+}
+
+.oauth-empty h4 { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 8px; }
+.oauth-empty p { font-size: 14px; color: #64748b; margin: 0 0 24px; max-width: 280px; line-height: 1.6;}
+
+.action-btn-light {
+  background: #f8fafc; border: 1px solid #cbd5e1;
+  color: #0f172a; font-weight: 600;
+  padding: 10px 24px; height: auto; border-radius: 10px;
+  transition: all 0.2s;
+}
+.action-btn-light:hover { background: #0ea5e9; border-color: #0ea5e9; color: #fff; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(14, 165, 233, 0.2); }
+
+/* Quick Links System */
+.quick-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 8px 0;
+}
+
+.premium-link-card {
+  display: flex;
+  align-items: center;
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+}
+
+.premium-link-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--hover-color);
+  background: #f8fafc;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+.link-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 18px;
   flex-shrink: 0;
+}
+
+.link-text-wrap { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.link-label { font-size: 16px; font-weight: 800; color: #1e293b; }
+.link-desc { font-size: 13px; color: #64748b; line-height: 1.4; }
+
+.link-arrow {
+  color: #cbd5e1;
+  font-size: 20px;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.premium-link-card:hover .link-arrow {
+  transform: translateX(6px);
+  color: var(--hover-color);
 }
 </style>

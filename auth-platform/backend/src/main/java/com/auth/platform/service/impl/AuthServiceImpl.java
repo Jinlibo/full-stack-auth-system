@@ -156,6 +156,7 @@ public class AuthServiceImpl implements AuthService {
         ServletRequestAttributes attrs =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs != null) {
+            attrs.getRequest().getSession(true);
             sessionRepo.saveContext(context, attrs.getRequest(), attrs.getResponse());
         }
 

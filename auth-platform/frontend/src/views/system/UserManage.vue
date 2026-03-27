@@ -128,30 +128,26 @@
         </el-table-column>
 
         <!-- 操作列：编辑 + 删除（带二次确认） -->
-        <el-table-column align="center" fixed="right" label="操作" width="150">
+        <el-table-column align="center" fixed="right" label="操作" width="170">
           <template #default="{ row }">
-            <!-- 编辑按钮：打开编辑对话框并回填当前行数据 -->
-            <el-button plain size="small" type="primary" @click="openDialog(row)">
-              <el-icon>
-                <Edit/>
-              </el-icon>
-              编辑
-            </el-button>
-            <!-- 删除按钮：popconfirm 二次确认后再执行删除 -->
-            <el-popconfirm
-                title="确认删除该用户?"
-                width="180"
-                @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button plain size="small" type="danger">
-                  <el-icon>
-                    <Delete/>
-                  </el-icon>
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+              <!-- 编辑按钮：打开编辑对话框并回填当前行数据 -->
+              <el-button plain size="small" type="primary" @click="openDialog(row)" style="margin: 0;">
+                <el-icon><Edit/></el-icon>编辑
+              </el-button>
+              <!-- 删除按钮：popconfirm 二次确认后再执行删除 -->
+              <el-popconfirm
+                  title="确认删除该用户?"
+                  width="180"
+                  @confirm="handleDelete(row.id)"
+              >
+                <template #reference>
+                  <el-button plain size="small" type="danger" style="margin: 0;">
+                    <el-icon><Delete/></el-icon>删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
