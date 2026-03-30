@@ -18,13 +18,13 @@ const routes = [
                 component: () => import('../views/auth/Register.vue'),
                 meta: {title: '注册', public: true}
             },
-            {
-                path: '/oauth/callback',
-                name: 'OAuthCallback',
-                component: () => import('../views/auth/OAuthCallback.vue'),
-                meta: {title: 'OAuth登录中...', public: true}
-            },
         ]
+    },
+    {
+        path: '/oauth/callback',
+        name: 'OAuthCallback',
+        component: () => import('../views/auth/OAuthCallback.vue'),
+        meta: {title: 'OAuth登录中...', public: true}
     },
     {
         path: '/', component: () => import('../components/Layout.vue'), redirect: '/dashboard',
