@@ -3,7 +3,10 @@ package com.auth.platform.common;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 
@@ -22,23 +25,37 @@ import java.time.Duration;
  */
 public final class OAuth2ClientDefaults {
 
-    /** 支持的客户端认证方式：Basic 认证和 POST 参数认证 */
+    /**
+     * 支持的客户端认证方式：Basic 认证和 POST 参数认证
+     */
     public static final String CLIENT_AUTH_METHODS = "client_secret_basic,client_secret_post";
 
-    /** 支持的授权类型：授权码模式和刷新令牌 */
+    /**
+     * 支持的授权类型：授权码模式和刷新令牌
+     */
     public static final String GRANT_TYPES = "authorization_code,refresh_token";
 
-    /** 默认请求的 OAuth2 范围：OpenID Connect、用户资料和邮箱 */
+    /**
+     * 默认请求的 OAuth2 范围：OpenID Connect、用户资料和邮箱
+     */
     public static final String SCOPES = "openid,profile,email";
 
-    /** 序列化为 JSON 的客户端设置（由 Spring ClientSettings API 生成） */
+    /**
+     * 序列化为 JSON 的客户端设置（由 Spring ClientSettings API 生成）
+     */
     public static final String CLIENT_SETTINGS;
 
-    /** 序列化为 JSON 的令牌设置（由 Spring TokenSettings API 生成） */
+    /**
+     * 序列化为 JSON 的令牌设置（由 Spring TokenSettings API 生成）
+     */
     public static final String TOKEN_SETTINGS;
 
     static {
         ObjectMapper mapper = new ObjectMapper();
+        ClassLoader classLoader = OAuth2ClientDefaults.class.getClassLoader();
+        mapper.registerModules(SecurityJackson2Modules.getModules(classLoader));
+        mapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
+        mapper.registerModule(new JavaTimeModule());
         mapper.activateDefaultTyping(
                 LaissezFaireSubTypeValidator.instance,
                 ObjectMapper.DefaultTyping.NON_FINAL

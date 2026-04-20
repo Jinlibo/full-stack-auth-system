@@ -193,7 +193,14 @@ public class AuthorizationServerConfig {
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults())
+                .oidc(oidc -> oidc
+                        .providerConfigurationEndpoint(config -> config
+                                .providerConfigurationCustomizer(builder -> builder
+                                        .claim("client_info_endpoint", "http://localhost:8080/api/oauth2/client-info")
+                                        .claim("revoke_consent_endpoint", "http://localhost:8080/api/oauth2/revoke-consent")
+                                )
+                        )
+                )
                 .authorizationEndpoint(e -> e.consentPage(frontendUrl + "/oauth-consent"));
         http
                 .exceptionHandling(exceptions -> exceptions
@@ -271,6 +278,7 @@ public class AuthorizationServerConfig {
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
                 .issuer("http://localhost:8080")
+                .oidcUserInfoEndpoint("/api/oauth2/userinfo")
                 .build();
     }
 }
